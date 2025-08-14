@@ -1,0 +1,19 @@
+{
+  "name": "sgac-projeto",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start-backend": "npm start --prefix backend",
+    "start-frontend": "npm start --prefix frontend",
+    "start-electron": "wait-on http://localhost:3000 && electron .",
+    "desktop": "concurrently \"npm:start-backend\" \"npm:start-frontend\" \"npm:start-electron\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "electron": "^37.2.5",
+    "wait-on": "^8.0.4"
+  },
+  "dependencies": {
+    "react-imask": "^7.6.1"
+  }
+}
