@@ -1,0 +1,22 @@
+/* frontend/src/components/layout/Layout.css */
+.layout-container { display: flex; height: 100vh; width: 100vw; background-color: white; font-family: Arial, sans-serif; }
+.sidebar { width: 230px; background: rgba(236, 236, 236, 1); display: flex; flex-direction: column; padding: 15px 8px; flex-shrink: 0; }
+.sidebar-logo { width: 100px; height: auto; margin: 20px auto 40px auto; }
+.sidebar-nav ul { list-style: none; padding: 0; margin: 0; }
+.sidebar-nav li { display: flex; align-items: center; padding: 12px 15px; cursor: pointer; border-radius: 8px; margin-bottom: 15px; color: #555; font-weight: 500; font-size: 0.9rem; }
+.sidebar-nav li i { margin-right: 12px; width: 35px; height: 35px; border-radius: 50%; background-color: white; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #333; }
+.sidebar-nav li.active { background-color: #e0eaf7; color: #2a5256; font-weight: bold; }
+.sidebar-nav li.active i { color: #2a5256; }
+.sidebar-footer { margin-top: auto; padding: 15px 20px; font-size: 0.9rem; cursor: pointer; }
+.page-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.top-bar { width: 100%; height: 50px; background-color: rgba(236, 236, 236, 1); flex-shrink: 0; }
+.main-header { background-color: rgb(26, 75, 95); color: white; padding: 12px 30px; font-family: 'EB Garamond', serif; display: flex; justify-content: space-between; align-items: center; }
+.main-header h1 { margin: 0; font-size: 1.5rem; }
+.logout-btn { background: #c00; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 5px; font-size: 0.9rem; }
+.content-area { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+
+/* 3. ADICIONAMOS O ESTILO PARA O LINK */
+.sidebar-link {
+  text-decoration: none; /* Remove o sublinhado */
+  color: inherit; /* Faz o link herdar a cor do texto do item 'li' */
+}

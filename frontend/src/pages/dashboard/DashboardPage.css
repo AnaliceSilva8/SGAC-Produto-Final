@@ -1,0 +1,139 @@
+/* frontend/src/pages/dashboard/DashboardPage.css */
+
+/* --- AJUSTES PARA O SCROLL FIXO --- */
+.page-content-area {
+    flex: 1;
+    display: flex; /* Transforma a área principal em um contêiner flex */
+    flex-direction: column; /* Organiza os filhos em coluna */
+    overflow: hidden; /* Esconde o overflow geral */
+    background-color: white;
+}
+
+.toolbar {
+  /* A barra de ferramentas terá sua altura natural e não encolherá */
+  flex-shrink: 0;
+}
+
+.client-list-container {
+  flex: 1; /* Faz a lista de clientes ocupar todo o espaço vertical disponível */
+  overflow-y: auto; /* Adiciona o scroll APENAS a esta área */
+  padding: 20px 30px;
+}
+
+.dashboard-footer {
+  /* O rodapé terá sua altura natural e não encolherá */
+  flex-shrink: 0;
+}
+/* --- FIM DOS AJUSTES --- */
+
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  border-bottom: 1px solid #eee;
+}
+
+.search-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-bar input {
+  width: 350px;
+  padding: 8px 35px 8px 15px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  font-size: 0.85rem;
+  background-color: rgba(236, 236, 236, 1);
+}
+
+.search-icon {
+  position: absolute;
+  right: 15px;
+  color: #888;
+}
+
+.add-client-btn {
+  background-color: rgb(26, 75, 95);
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+.client-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.client-list-item {
+  display: grid;
+  grid-template-columns: 2.5fr 1.5fr 1fr auto;
+  align-items: center;
+  gap: 15px;
+  background: rgba(236, 236, 236, 1);
+  padding: 8px 20px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  font-size: 0.85rem;
+  color: #333;
+}
+
+.client-name-link {
+  text-decoration: none;
+  color: #333;
+  font-weight: normal;
+}
+
+.client-name-link:hover {
+  color: rgb(26, 75, 95);
+  text-decoration: underline;
+}
+
+.view-process-btn {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 6px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #444;
+}
+
+.dashboard-footer {
+  display: flex;
+  justify-content: space-around;
+  padding: 20px 30px;
+  border-top: 1px solid #eee;
+}
+
+.summary-card {
+  text-align: center;
+  background-color: rgba(236, 236, 236, 1);
+  padding: 15px;
+  border-radius: 8px;
+  flex: 1;
+  max-width: 250px;
+  margin: 0 10px;
+}
+
+.summary-card h4 {
+  color: #666;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.summary-card p {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: #333;
+  margin: 5px 0 0 0;
+}

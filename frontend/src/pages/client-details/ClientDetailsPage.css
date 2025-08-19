@@ -1,0 +1,61 @@
+/* frontend/src/pages/client-details/ClientDetailsPage.css */
+.client-details-wrapper { padding: 20px 30px; }
+.loading-container { padding: 30px; text-align: center; font-size: 1.2rem; }
+.tabs-nav { display: flex; border-bottom: 1px solid #ddd; margin-bottom: 25px; }
+.tab-button { padding: 10px 0px; margin-right: 30px; border: none; background: none; cursor: pointer; font-size: 1rem; font-weight: 500; color: #666; border-bottom: 3px solid transparent; }
+.tab-button.active { color: rgb(26, 75, 95); font-weight: bold; border-bottom: 3px solid rgb(26, 75, 95); }
+.tab-content { background: #fdfdfd; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.personal-data-container { display: flex; gap: 40px; }
+.profile-picture-section { text-align: center; flex-shrink: 0; }
+.profile-picture { width: 160px; height: 180px; border-radius: 8px; object-fit: cover; border: 1px solid #ddd; margin-bottom: 10px; }
+.upload-btn { width: 100%; padding: 8px; border: 1px solid #ccc; background-color: #f0f0f0; cursor: pointer; border-radius: 5px; }
+
+/* LAYOUT DO GRID DE DADOS AJUSTADO PARA 3 COLUNAS */
+.data-grid { 
+  display: grid; 
+  grid-template-columns: repeat(3, 1fr); /* Define que teremos 3 colunas */
+  gap: 25px 30px; /* Espaçamento vertical e horizontal */
+  flex: 1; 
+}
+.data-field label { 
+  font-size: 0.8rem; 
+  color: #777; 
+  font-weight: bold; 
+  display: block; 
+  margin-bottom: 8px;
+  text-transform: uppercase; 
+}
+.data-field p { 
+  margin: 0; 
+  font-size: 1.3rem;
+  color: rgb(26, 75, 95); 
+}
+
+/* ESTILO PARA OS INPUTS NO MODO DE EDIÇÃO */
+.data-field input, .data-field select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.action-buttons { margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1.5rem; display: flex; gap: 1rem; }
+.action-btn { padding: 10px 20px; border-radius: 5px; border: 1px solid #ccc; background: #f0f0f0; cursor: pointer; font-weight: bold; }
+.action-btn.primary { background-color: rgb(26, 75, 95); color: white; border-color: rgb(26, 75, 95); }
+.action-btn.delete { color: #c00; border-color: #c00; }
+
+.data-field .input-style {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+/* Adicione no final de ClientDetailsPage.css */
+.data-grid.full-width-grid {
+    grid-column: 1 / -1; /* Faz o grid ocupar todo o container pai */
+}
