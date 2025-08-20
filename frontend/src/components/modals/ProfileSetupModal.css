@@ -1,0 +1,24 @@
+/* frontend/src/components/modals/ProfileSetupModal.css */
+.profile-setup-modal .input-group {
+    margin-bottom: 1rem;
+}
+.profile-setup-modal label, .profile-setup-modal input, .profile-setup-modal select {
+    display: block;
+    width: 100%;
+}
+.profile-setup-modal .modal-buttons {
+    justify-content: center;
+}
+
+/* Adicione no final do arquivo */
+.error-text {
+  color: #d93025; /* Um tom de vermelho forte */
+  font-size: 0.8rem;
+  margin-top: 5px;
+  text-align: left;
+}
+
+/* Opcional: Adiciona uma borda vermelha ao campo com erro */
+.input-group input.error, .input-group select.error {
+    border-color: #d93025;
+}

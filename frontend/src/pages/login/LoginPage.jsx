@@ -1,30 +1,46 @@
-// frontend/src/pages/LoginPage.jsx
+// frontend/src/pages/login/LoginPage.jsx
 import React, { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import './login.css'; 
-import { auth } from '../firebase-config/config';
+import { auth, db } from '../../firebase-config/config';
 import { signInWithEmailAndPassword } from "firebase/auth";
-import logo from '../assets/logo.png';
-import ForgotPasswordModal from "./forgot-password/ForgotPasswordModal.jsx";
+import { doc, getDoc } from "firebase/firestore";
+import logo from '../../assets/logo.png';
+import ForgotPasswordModal from "../../components/modals/ForgotPasswordModal.jsx";
+import ProfileSetupModal from "../../components/modals/ProfileSetupModal.jsx";
+import RegistrationKeyModal from "../../components/modals/RegistrationKeyModal.jsx"; // Importa o modal da chave
 
 function LoginPage() { 
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(''); // 1. NOVO ESTADO PARA GUARDAR A MENSAGEM DE ERRO
+  const [error, setError] = useState('');
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false); // Estado para o modal da chave
+  const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+  const [firstLoginUser, setFirstLoginUser] = useState(null);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError(''); // Limpa erros antigos antes de tentar o login
+    setError('');
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigate('/');
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      const userDocRef = doc(db, 'usuarios', user.uid);
+      const docSnap = await getDoc(userDocRef);
+
+      if (docSnap.exists()) {
+        navigate('/');
+      } else {
+        setFirstLoginUser(user);
+        setNeedsProfileSetup(true);
+      }
+
     } catch (firebaseError) {
-      // 2. EM VEZ DE 'alert', ATUALIZAMOS O ESTADO DO ERRO
       setError('E-mail ou senha inválidos.');
-      setPassword(''); // Limpa o campo de senha para o usuário tentar novamente
+      setPassword('');
       console.error("Erro do Firebase:", firebaseError.code);
     }
   };
@@ -65,13 +81,17 @@ function LoginPage() {
                 />
               </div>
 
-              {/* 3. EXIBIMOS A MENSAGEM DE ERRO AQUI, SE ELA EXISTIR */}
               {error && <p className="error-message">{error}</p>}
 
               <a href="#" className="forgot-password" onClick={(e) => { e.preventDefault(); setIsForgotModalOpen(true); }}>
                 Esqueci minha senha
               </a>
               <button type="submit" className="btn-login">Acessar</button>
+              
+              {/* --- BOTÃO CADASTRE-SE DE VOLTA --- */}
+              <button type="button" className="btn-register" onClick={() => setIsKeyModalOpen(true)}>
+                Cadastre-se
+              </button>
             </form>
           </div>
         </main>
@@ -79,6 +99,21 @@ function LoginPage() {
       </div>
       
       {isForgotModalOpen && <ForgotPasswordModal onClose={() => setIsForgotModalOpen(false)} />}
+      
+      {needsProfileSetup && (
+        <ProfileSetupModal 
+          user={firstLoginUser}
+          onProfileComplete={() => navigate('/')} 
+        />
+      )}
+
+      {/* Renderiza o modal da chave de registro */}
+      {isKeyModalOpen && (
+        <RegistrationKeyModal
+          onCancel={() => setIsKeyModalOpen(false)}
+          onAccessGranted={() => navigate('/cadastro')} // Se a chave for correta, navega para a página de cadastro
+        />
+      )}
     </>
   );
 }
