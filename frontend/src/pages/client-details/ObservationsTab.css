@@ -1,0 +1,163 @@
+/* Container principal da aba */
+.observations-tab-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Nome do cliente no topo da caixa de texto */
+.client-name-header {
+  color: rgb(26, 75, 95);
+  font-size: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+/* Seção de adicionar nova observação */
+.add-observation-section {
+  display: flex;
+  flex-direction: column;
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.add-observation-content {
+  display: flex;
+  gap: 2rem;
+  width: 98%;
+}
+
+.observation-textarea {
+  flex: 1;
+  /* Altura mínima da caixa de texto foi reduzida */
+  min-height: 280px; 
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 320px;
+}
+
+.suggestion-item {
+  background-color: rgb(26, 75, 95);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  transition: background-color 0.2s ease;
+}
+
+.suggestion-item:hover {
+  background-color: rgb(46, 95, 115);
+}
+
+.observation-buttons {
+  display: flex;
+  justify-content: flex-start;
+  gap: 1rem;
+  margin-top: 1.5rem; /* Adicionado um espaço acima dos botões */
+}
+
+.btn-add-observation, .btn-cancel-observation, .btn-delete-observation {
+  padding: 0.7rem 1.5rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.btn-add-observation {
+  background-color: rgb(26, 75, 95);
+  color: white;
+  border: 1px solid rgb(26, 75, 95);
+}
+
+.btn-cancel-observation {
+  background-color: #f0f0f0;
+  color: #333;
+  border: 1px solid #ccc;
+}
+
+.btn-delete-observation {
+  align-self: flex-start;
+  margin-top: 1.5rem;
+  color: #c00;
+  background-color: transparent;
+  border: 1px solid #c00;
+}
+
+
+/* --- ESTILOS PARA O HISTÓRICO --- */
+
+.history-section {
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 8px;
+}
+
+.history-section h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #333;
+  font-size: 1.1rem;
+  font-weight: normal;
+}
+
+.observations-grid {
+  display: grid;
+  grid-template-columns: 40px 120px 100px 1fr auto;
+  gap: 0 2rem;
+  font-size: 1rem;
+  border-bottom: 1px solid #ebdede;
+}
+
+.observation-header {
+  font-weight: bold;
+  color: #666;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #ebdede;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  text-align: left;
+}
+
+.observation-header.observation-responsible-header {
+  text-align: left;
+}
+
+.observation-cell {
+  padding: 1rem 0;
+  color: #333;
+  display: flex;
+  align-items: center;
+  white-space: pre-wrap;
+}
+
+.cell-select {
+  justify-content: center;
+}
+
+.observation-checkbox {
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.observation-responsible-cell {
+  justify-content: flex-end;
+}

@@ -59,3 +59,23 @@
 .data-grid.full-width-grid {
     grid-column: 1 / -1; /* Faz o grid ocupar todo o container pai */
 }
+
+/* ADIÇÕES PARA O LAYOUT DAS ABAS E SCROLL */
+.client-details-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 80px); /* Ajusta a altura considerando um cabeçalho de 80px, por exemplo. Ajuste se necessário. */
+  overflow: hidden;
+}
+
+.tab-content {
+  flex: 1; /* Faz o conteúdo da aba ocupar o espaço restante */
+  overflow-y: auto; /* Adiciona scroll somente nesta área */
+  padding: 2rem;
+  background: #fdfdfd;
+}
+
+.action-btn.edit { /* Adicionando um estilo para o botão editar para combinar com o de excluir */
+    color: #007bff;
+    border-color: #007bff;
+}

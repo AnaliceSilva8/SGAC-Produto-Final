@@ -1,20 +1,25 @@
-// frontend/src/components/modals/DeleteConfirmationModal.jsx
 import React, { useState } from 'react';
 import './DeleteConfirmationModal.css';
 
-function DeleteConfirmationModal({ clientName, onConfirm, onCancel }) {
+function DeleteConfirmationModal({
+  onConfirm,
+  onCancel,
+  title = "Confirmar Exclusão",
+  warningText = "Esta ação não pode ser desfeita.",
+  checkboxLabel = "Sim, eu entendo as consequências e quero excluir.",
+  confirmButtonText = "Excluir Permanentemente",
+  children // Usaremos 'children' para a pergunta principal
+}) {
   const [isChecked, setIsChecked] = useState(false);
 
   return (
     <div className="modal-overlay">
       <div className="modal-content delete-modal">
-        <h2>Confirmar Exclusão</h2>
-        <p>
-          Você tem certeza que deseja excluir permanentemente o cliente <strong>{clientName}</strong>?
-        </p>
-        <p className="warning-text">
-          Esta ação não pode ser desfeita. Todos os dados, documentos e processos associados a este cliente serão perdidos.
-        </p>
+        <h2>{title}</h2>
+        
+        <p>{children}</p> 
+
+        <p className="warning-text">{warningText}</p>
         
         <div className="confirm-checkbox">
           <input 
@@ -23,7 +28,7 @@ function DeleteConfirmationModal({ clientName, onConfirm, onCancel }) {
             checked={isChecked}
             onChange={() => setIsChecked(!isChecked)}
           />
-          <label htmlFor="confirmDelete">Sim, eu entendo as consequências e quero excluir este cliente.</label>
+          <label htmlFor="confirmDelete">{checkboxLabel}</label>
         </div>
 
         <div className="modal-buttons">
@@ -32,7 +37,7 @@ function DeleteConfirmationModal({ clientName, onConfirm, onCancel }) {
             onClick={onConfirm}
             disabled={!isChecked}
           >
-            Excluir Permanentemente
+            {confirmButtonText}
           </button>
           <button className="btn-cancel" onClick={onCancel}>
             Cancelar
