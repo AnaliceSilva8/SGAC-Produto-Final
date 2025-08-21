@@ -2,12 +2,15 @@
 import React from 'react';
 
 // Este componente recebe os dados do cliente e apenas os exibe.
-// No futuro, adicionaremos a lógica de edição aqui.
 function PersonalDataTab({ clientData }) {
+  // Adiciona uma verificação para evitar o erro se clientData for nulo
+  if (!clientData) {
+    return <p>Carregando...</p>;
+  }
+
   return (
     <div className="personal-data-container">
       <div className="profile-picture-section">
-        {/* Espaço para a foto do cliente */}
         <div className="picture-placeholder"></div>
         <button className="upload-btn">Carregar Foto</button>
       </div>

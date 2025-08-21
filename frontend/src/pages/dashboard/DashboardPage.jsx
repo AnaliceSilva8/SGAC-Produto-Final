@@ -1,11 +1,8 @@
-// frontend/src/pages/dashboard/DashboardPage.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { auth, db } from '../../firebase-config/config';
-import { collection, getDocs, query, orderBy } from "firebase/firestore"; 
-import { signOut } from 'firebase/auth';
+import { db } from '../../firebase-config/config';
+import { collection, getDocs, query, where } from "firebase/firestore"; // Removido o 'orderBy' daqui
 import './DashboardPage.css';
-import logo from '../../assets/logo.png';
 import AddClientModal from '../add-client/AddClientModal';
 
 const formatDate = (dateString) => {
@@ -23,14 +20,39 @@ function DashboardPage() {
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
 
+  const selectedLocation = localStorage.getItem('selectedLocation');
+
   const fetchClients = async () => {
+    if (!selectedLocation) {
+      navigate('/login');
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const q = query(collection(db, "clientes"), orderBy("NOMECLIENTE"));
+      const clientsCollection = collection(db, "clientes");
+      
+      // 1. A CONSULTA AGORA APENAS FILTRA, SEM ORDENAR
+      const q = query(
+        clientsCollection, 
+        where("LOCATION", "==", selectedLocation)
+      );
+
       const data = await getDocs(q);
-      setClients(data.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+      const clientList = data.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+
+      // 2. A ORDENAÇÃO É FEITA AQUI, NO CÓDIGO
+      clientList.sort((a, b) => {
+        if (a.NOMECLIENTE < b.NOMECLIENTE) return -1;
+        if (a.NOMECLIENTE > b.NOMECLIENTE) return 1;
+        return 0;
+      });
+
+      setClients(clientList);
+
     } catch (error) {
       console.error("Erro ao buscar clientes:", error);
+      alert("Não foi possível carregar os clientes. Verifique sua conexão ou contate o suporte.");
     } finally {
       setIsLoading(false);
     }
@@ -38,14 +60,8 @@ function DashboardPage() {
 
   useEffect(() => {
     fetchClients();
-  }, []);
+  }, [selectedLocation, navigate]);
 
-  const handleLogout = () => {
-    signOut(auth).then(() => {
-      navigate('/login');
-    }).catch((error) => console.error("Erro ao fazer logout:", error));
-  };
-  
   const handleCloseModal = () => {
     setIsModalOpen(false);
     if (searchInputRef.current) {
@@ -63,6 +79,7 @@ function DashboardPage() {
     return name.includes(search) || (searchNumbers.length > 0 && cpf.includes(searchNumbers)) || birthDate.includes(search);
   });
 
+  // O restante do seu componente (o JSX) continua o mesmo
   return (
     <>
       <div className="toolbar">
@@ -82,7 +99,7 @@ function DashboardPage() {
       </div>
 
       <div className="client-list-container">
-        {isLoading ? <p>Carregando clientes...</p> : (
+        {isLoading ? <p>Carregando clientes de {selectedLocation}...</p> : (
           <ul className="client-list">
             {filteredClients.map(client => (
               <li key={client.id} className="client-list-item">
@@ -100,7 +117,7 @@ function DashboardPage() {
       
       <footer className="dashboard-footer">
         <div className="summary-card">
-          <h4>TOTAL DE CLIENTES</h4>
+          <h4>TOTAL DE CLIENTES ({selectedLocation})</h4>
           <p>{clients.length}</p>
         </div>
         <div className="summary-card">

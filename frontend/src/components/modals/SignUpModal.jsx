@@ -5,8 +5,7 @@ import { auth, db } from '../../firebase-config/config';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { IMaskInput } from 'react-imask';
-import './SignUpModal.css';
-import './SignUpModal.css';
+import './SignUpModal.css'; // A importação duplicada foi removida e o nome corrigido
 
 // Função para validar o CPF
 function isValidCPF(cpf) {

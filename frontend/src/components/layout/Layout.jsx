@@ -1,6 +1,5 @@
 // frontend/src/components/layout/Layout.jsx
 import React from 'react';
-// 1. IMPORTAMOS O 'Link' PARA CRIAR LINKS DE NAVEGAÇÃO
 import { useNavigate, Link } from 'react-router-dom';
 import { auth } from '../../firebase-config/config';
 import { signOut } from 'firebase/auth';
@@ -11,7 +10,10 @@ function Layout({ children }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    signOut(auth).then(() => navigate('/login')).catch(console.error);
+    signOut(auth).then(() => {
+      localStorage.removeItem('selectedLocation');
+      navigate('/login');
+    }).catch(console.error);
   };
 
   return (
@@ -20,7 +22,6 @@ function Layout({ children }) {
         <img src={logo} alt="Logo" className="sidebar-logo" />
         <nav className="sidebar-nav">
           <ul>
-            {/* 2. ENVOLVEMOS O ITEM 'li' COM O COMPONENTE 'Link' */}
             <Link to="/" className="sidebar-link">
               <li className="active">
                 <i className="fa-solid fa-users"></i>
@@ -41,15 +42,21 @@ function Layout({ children }) {
             </li>
           </ul>
         </nav>
-        <div className="sidebar-footer"><span>?</span> Ajuda</div>
+        <div className="sidebar-footer">
+          <Link to="#" className="sidebar-link">
+            <span>?</span> Ajuda
+          </Link>
+        </div>
       </aside>
       
       <div className="page-content">
+        {/* A DIV ABAIXO FOI RESTAURADA */}
         <div className="top-bar"></div>
         <header className="main-header">
           <h1>DOIRADO & IDALINO</h1>
           <button onClick={handleLogout} className="logout-btn">Sair</button>
         </header>
+        {/* A CLASSE DA ÁREA DE CONTEÚDO FOI CORRIGIDA */}
         <main className="content-area">
           {children}
         </main>

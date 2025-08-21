@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../../firebase-config/config';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { IMaskInput } from 'react-imask';
 import './SignUpPage.css';
 import logo from '../../assets/logo.png';
@@ -21,39 +21,63 @@ function SignUpPage() {
   const [formData, setFormData] = useState({
     email: '', password: '', nome: '', cpf: '', dataNascimento: '', cargo: ''
   });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
 
   const handleInputChange = (e) => {
     const { id, value } = e.target;
+    if (errors[id]) {
+        setErrors(prev => ({ ...prev, [id]: undefined }));
+    }
     if (id === 'nome' && !/^[a-zA-Z\s]*$/.test(value)) return;
     setFormData(prevState => ({ ...prevState, [id]: value }));
   };
 
   const handleMaskedInputChange = (value, fieldId) => {
+    if (errors[fieldId]) {
+      setErrors(prev => ({ ...prev, [fieldId]: undefined }));
+    }
     setFormData(prevState => ({ ...prevState, [fieldId]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    
+    const newErrors = {};
+
     if (!formData.email || !formData.password || !formData.nome || !formData.cpf || !formData.dataNascimento || !formData.cargo) {
-      setError("Todos os campos são obrigatórios.");
-      return;
+      newErrors.form = "Todos os campos são obrigatórios.";
     }
-    if (!isValidCPF(formData.cpf)) {
-      setError("O CPF digitado é inválido.");
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{6,}$/;
+    if (formData.password && !passwordRegex.test(formData.password)) {
+      newErrors.password = "A senha deve ter 6+ caracteres, 1 maiúscula e 1 número.";
+    }
+    if (formData.cpf && !isValidCPF(formData.cpf)) {
+      newErrors.cpf = "O CPF digitado é inválido.";
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     setIsSaving(true);
     try {
+      const usersRef = collection(db, 'usuarios');
+      const q = query(usersRef, where("cpf", "==", formData.cpf));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        setErrors({ cpf: "Este CPF já está cadastrado em outra conta." });
+        setIsSaving(false);
+        return;
+      }
+      
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
 
-      const userDocRef = doc(db, 'usuarios', user.uid);
-      await setDoc(userDocRef, {
+      await sendEmailVerification(user);
+
+      await setDoc(doc(db, 'usuarios', user.uid), {
         nome: formData.nome,
         cpf: formData.cpf,
         dataNascimento: formData.dataNascimento,
@@ -61,15 +85,14 @@ function SignUpPage() {
         email: user.email
       });
 
-      alert(`Usuário ${formData.nome} criado com sucesso!`);
+      alert(`Usuário criado! Um link de verificação foi enviado para ${formData.email}. Por favor, verifique sua caixa de entrada para ativar a conta.`);
       navigate('/login');
     } catch (error) {
       if (error.code === 'auth/email-already-in-use') {
-        setError("Este e-mail já está cadastrado.");
+        setErrors({ email: "Este e-mail já está cadastrado." });
       } else {
-        setError("Falha no cadastro. Verifique os dados.");
+        setErrors({ form: "Falha no cadastro. Verifique os dados." });
       }
-      console.error("Erro ao criar usuário:", error);
     } finally {
       setIsSaving(false);
     }
@@ -77,52 +100,70 @@ function SignUpPage() {
   
   return (
     <div className="signup-page-container">
-      <div className="signup-form-wrapper">
-        <img src={logo} alt="Logo" className="signup-logo" />
-        <h2>Cadastro de Novo Usuário</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-grid-signup">
-            <div className="input-group">
-              <label htmlFor="email">E-mail (para login)</label>
-              <input id="email" type="email" value={formData.email} onChange={handleInputChange} />
+      <div className="side-panel"></div>
+      <main className="signup-main-content">
+        <header className="signup-header">
+          <img src={logo} alt="Logo Doirado & Idalino" />
+          <h1>DOIRADO & IDALINO</h1>
+        </header>
+        <div className="signup-form-container">
+          <h2>Cadastro de Novo Usuário</h2>
+          <p>Preencha os dados para criar a conta.</p>
+          <form onSubmit={handleSubmit}>
+            <div className="form-grid-signup">
+              <div className="input-group">
+                <label htmlFor="nome">Nome Completo</label>
+                <input id="nome" type="text" value={formData.nome} onChange={handleInputChange} required />
+              </div>
+              <div className="input-group">
+                <label htmlFor="cpf">CPF</label>
+                <IMaskInput mask="000.000.000-00" id="cpf" value={formData.cpf} onAccept={(value) => handleMaskedInputChange(value, 'cpf')} required />
+                {errors.cpf && <p className="field-error">{errors.cpf}</p>}
+              </div>
+              <div className="input-group">
+                <label htmlFor="dataNascimento">Data de Nascimento</label>
+                <input id="dataNascimento" type="date" value={formData.dataNascimento} onChange={handleInputChange} required />
+              </div>
+              <div className="input-group">
+                <label htmlFor="cargo">Cargo / Função</label>
+                <select id="cargo" value={formData.cargo} onChange={handleInputChange} required>
+                    <option value="">Selecione...</option>
+                    <option value="Advogado(a)">Advogado(a)</option>
+                    <option value="Secretário(a)">Secretário(a)</option>
+                    <option value="Estagiário(a)">Estagiário(a)</option>
+                </select>
+              </div>
+              <div className="input-group">
+                <label htmlFor="email">E-mail (para login)</label>
+                <input id="email" type="email" value={formData.email} onChange={handleInputChange} required />
+                {errors.email && <p className="field-error">{errors.email}</p>}
+              </div>
+              <div className="input-group">
+                <label htmlFor="password">Senha</label>
+                <input 
+                  id="password" 
+                  type="password" 
+                  value={formData.password} 
+                  onChange={handleInputChange} 
+                  placeholder="6+ caracteres, 1 maiúscula, 1 número"
+                  required 
+                />
+                {errors.password && <p className="field-error">{errors.password}</p>}
+              </div>
             </div>
-            <div className="input-group">
-              <label htmlFor="password">Senha (mínimo 6 caracteres)</label>
-              <input id="password" type="password" value={formData.password} onChange={handleInputChange} />
+            {errors.form && <p className="form-error-message">{errors.form}</p>}
+            <div className="signup-buttons">
+              <button type="submit" className="btn-save" disabled={isSaving}>
+                {isSaving ? 'Salvando...' : 'Cadastrar Usuário'}
+              </button>
+              <button type="button" className="btn-cancel" onClick={() => navigate('/login')}>
+                Cancelar
+              </button>
             </div>
-            <div className="input-group">
-              <label htmlFor="nome">Nome Completo</label>
-              <input id="nome" type="text" value={formData.nome} onChange={handleInputChange} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="cpf">CPF</label>
-              <IMaskInput mask="000.000.000-00" id="cpf" value={formData.cpf} onAccept={(value) => handleMaskedInputChange(value, 'cpf')} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="dataNascimento">Data de Nascimento</label>
-              <input id="dataNascimento" type="date" value={formData.dataNascimento} onChange={handleInputChange} />
-            </div>
-            <div className="input-group">
-              <label htmlFor="cargo">Cargo / Função</label>
-              <select id="cargo" value={formData.cargo} onChange={handleInputChange}>
-                  <option value="">Selecione...</option>
-                  <option value="Advogado(a)">Advogado(a)</option>
-                  <option value="Secretário(a)">Secretário(a)</option>
-                  <option value="Estagiário(a)">Estagiário(a)</option>
-              </select>
-            </div>
-          </div>
-          {error && <p className="error-text-signup">{error}</p>}
-          <div className="signup-buttons">
-            <button type="submit" className="btn-save" disabled={isSaving}>
-              {isSaving ? 'Salvando...' : 'Cadastrar Usuário'}
-            </button>
-            <button type="button" className="btn-cancel" onClick={() => navigate('/login')}>
-              Voltar para o Login
-            </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      </main>
+      <div className="side-panel"></div>
     </div>
   );
 }

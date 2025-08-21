@@ -8,7 +8,7 @@ import { doc, getDoc } from "firebase/firestore";
 import logo from '../../assets/logo.png';
 import ForgotPasswordModal from "../../components/modals/ForgotPasswordModal.jsx";
 import ProfileSetupModal from "../../components/modals/ProfileSetupModal.jsx";
-import RegistrationKeyModal from "../../components/modals/RegistrationKeyModal.jsx"; // Importa o modal da chave
+import RegistrationKeyModal from "../../components/modals/RegistrationKeyModal.jsx";
 
 function LoginPage() { 
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false); // Estado para o modal da chave
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [firstLoginUser, setFirstLoginUser] = useState(null);
 
@@ -55,6 +55,7 @@ function LoginPage() {
             <h1>DOIRADO & IDALINO</h1>
           </header>
           <div className="login-form-container">
+            {/* A alteração está aqui */}
             <h2>Login</h2>
             <p>Digite seus dados de acesso no campo abaixo.</p>
             <form className="login-form" onSubmit={handleLogin}>
@@ -88,7 +89,6 @@ function LoginPage() {
               </a>
               <button type="submit" className="btn-login">Acessar</button>
               
-              {/* --- BOTÃO CADASTRE-SE DE VOLTA --- */}
               <button type="button" className="btn-register" onClick={() => setIsKeyModalOpen(true)}>
                 Cadastre-se
               </button>
@@ -107,11 +107,10 @@ function LoginPage() {
         />
       )}
 
-      {/* Renderiza o modal da chave de registro */}
       {isKeyModalOpen && (
         <RegistrationKeyModal
           onCancel={() => setIsKeyModalOpen(false)}
-          onAccessGranted={() => navigate('/cadastro')} // Se a chave for correta, navega para a página de cadastro
+          onAccessGranted={() => navigate('/cadastro')}
         />
       )}
     </>

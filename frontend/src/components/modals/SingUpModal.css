@@ -3,7 +3,6 @@
     text-align: center;
     margin-top: 0;
     margin-bottom: 2rem;
-    font-family: 'Istok Web', sans-serif;
 }
 
 .form-grid-signup {
@@ -35,7 +34,7 @@
   font-size: 1rem;
 }
 
-/* Reutilizando estilos de outros modais para consistência */
+/* Estilos gerais de modal que podem ser compartilhados */
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(0, 0, 0, 0.6);

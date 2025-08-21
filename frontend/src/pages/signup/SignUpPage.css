@@ -1,43 +1,120 @@
+/* frontend/src/pages/signup/SignUpPage.css */
 .signup-page-container {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: #f0f2f5;
-  padding: 2rem;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(236, 236, 236, 1);
+  font-family: 'Istok Web', sans-serif;
 }
-.signup-form-wrapper {
-  background: white;
+.side-panel {
+  flex: 1;
+  background-color: rgb(26, 75, 95);
+}
+.signup-main-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-basis: 900px;
+  padding: 2rem;
+  overflow-y: auto;
+}
+.signup-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.signup-header img {
+  width: 130px;
+  height: auto;
+  background-color: transparent;
+}
+.signup-header h1 {
+  font-family: 'EB Garamond', serif;
+  font-weight: 700;
+  font-size: 2.5rem;
+  color: rgb(26, 75, 95);
+  margin-top: 1rem;
+}
+.signup-form-container {
+  background-color: white;
   padding: 2.5rem;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 700px;
+  max-width: 800px;
+}
+.signup-form-container h2 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
   text-align: center;
 }
-.signup-logo {
-  width: 80px;
+.signup-form-container p {
   margin-bottom: 1.5rem;
+  color: #666;
+  text-align: center;
 }
 .form-grid-signup {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem 1.5rem;
+  gap: 1.2rem 1.5rem;
   text-align: left;
 }
-.error-text-signup {
+.input-group {
+  position: relative;
+  padding-bottom: 18px; /* Espaço para a mensagem de erro */
+}
+.form-grid-signup label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+.form-grid-signup input,
+.form-grid-signup select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+/* --- ESTILO CORRIGIDO PARA ERROS --- */
+.error-message-field {
   color: #c00;
-  margin-top: 1.5rem;
+  font-size: 0.8rem;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+
+.error-message-form {
+  color: #c00;
+  text-align: center;
+  margin: 1.5rem 0 0 0;
   font-size: 0.9rem;
 }
+
 .signup-buttons {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 1rem;
   margin-top: 2rem;
+  border-top: 1px solid #eee;
+  padding-top: 1.5rem;
 }
-.signup-form-wrapper .input-group { margin-bottom: 0.5rem; }
-.signup-form-wrapper label { display: block; margin-bottom: 0.5rem; font-weight: bold; font-size: 0.9rem; }
-.signup-form-wrapper input, .signup-form-wrapper select {
-  width: 100%; padding: 0.75rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 1rem;
+.signup-buttons button {
+  padding: 0.7rem 1.5rem;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+}
+.btn-save {
+  background-color: rgb(26, 75, 95);
+  color: white;
+}
+.btn-cancel {
+  background-color: #f0f0f0;
+  color: #333;
 }
