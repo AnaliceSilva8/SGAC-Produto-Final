@@ -2,8 +2,22 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Permite que qualquer usuário LOGADO leia e escreva em qualquer coleção.
-    match /{document=**} {
+
+    // Regras específicas para a coleção 'usuarios'
+    match /usuarios/{userId} {
+      // PERMITE O CADASTRO:
+      // Para a página de cadastro, permite que QUALQUER UM leia a lista (para checar o CPF)
+      // e crie novos usuários. A permissão 'list' é necessária para a consulta (query).
+      allow list, create: if true;
+
+      // PROTEGE OS DADOS EXISTENTES:
+      // Permite que um usuário logado leia (get), atualize ou apague APENAS os seus próprios dados.
+      allow get, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Regras para todas as outras coleções (clientes, observações, etc.)
+    match /clientes/{document=**} {
+      // Exige que o usuário esteja logado para fazer qualquer coisa com os dados dos clientes.
       allow read, write: if request.auth != null;
     }
   }

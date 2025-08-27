@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../../firebase-config/config';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth'; // 1. sendEmailVerification removido
 import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { IMaskInput } from 'react-imask';
+import Swal from 'sweetalert2'; // 2. SweetAlert importado
 import './SignUpPage.css';
 import logo from '../../assets/logo.png';
 
+// Função de validação de CPF corrigida e funcional
 function isValidCPF(cpf) {
   if (typeof cpf !== 'string') return false;
   cpf = cpf.replace(/[^\d]+/g, '');
   if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
-  cpf = cpf.split('').map(el => +el);
-  const rest = (count) => (cpf.slice(0, count-12).reduce((soma, el, index) => soma + el * (count - index), 0) * 10) % 11 % 10;
-  return rest(10) === cpf[9] && rest(11) === cpf[10];
+  
+  const cpfArray = cpf.split('').map(el => +el);
+  const rest = (count) => (cpfArray.slice(0, count).reduce((soma, el, index) => soma + el * (count + 1 - index), 0) * 10) % 11 % 10;
+
+  return rest(9) === cpfArray[9] && rest(10) === cpfArray[10];
 }
 
 function SignUpPage() {
@@ -21,77 +25,80 @@ function SignUpPage() {
   const [formData, setFormData] = useState({
     email: '', password: '', nome: '', cpf: '', dataNascimento: '', cargo: ''
   });
-  const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  // 3. O estado 'errors' foi removido, pois o SweetAlert cuidará de tudo.
 
   const handleInputChange = (e) => {
     const { id, value } = e.target;
-    if (errors[id]) {
-        setErrors(prev => ({ ...prev, [id]: undefined }));
-    }
     if (id === 'nome' && !/^[a-zA-Z\s]*$/.test(value)) return;
     setFormData(prevState => ({ ...prevState, [id]: value }));
   };
 
   const handleMaskedInputChange = (value, fieldId) => {
-    if (errors[fieldId]) {
-      setErrors(prev => ({ ...prev, [fieldId]: undefined }));
-    }
     setFormData(prevState => ({ ...prevState, [fieldId]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const newErrors = {};
 
-    if (!formData.email || !formData.password || !formData.nome || !formData.cpf || !formData.dataNascimento || !formData.cargo) {
-      newErrors.form = "Todos os campos são obrigatórios.";
+    // --- Validações com SweetAlert ---
+    const { email, password, nome, cpf, dataNascimento, cargo } = formData;
+    if (!email || !password || !nome || !cpf || !dataNascimento || !cargo) {
+      Swal.fire('Atenção!', 'Todos os campos são obrigatórios.', 'warning');
+      return;
     }
     const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{6,}$/;
-    if (formData.password && !passwordRegex.test(formData.password)) {
-      newErrors.password = "A senha deve ter 6+ caracteres, 1 maiúscula e 1 número.";
+    if (!passwordRegex.test(password)) {
+      Swal.fire('Senha Inválida', 'A senha deve ter 6+ caracteres, pelo menos 1 letra maiúscula e 1 número.', 'warning');
+      return;
     }
-    if (formData.cpf && !isValidCPF(formData.cpf)) {
-      newErrors.cpf = "O CPF digitado é inválido.";
-    }
-    
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    if (!isValidCPF(cpf)) {
+      Swal.fire('CPF Inválido', 'O CPF digitado não é válido. Por favor, verifique.', 'warning');
       return;
     }
 
     setIsSaving(true);
     try {
+      // Verifica se CPF já existe
       const usersRef = collection(db, 'usuarios');
-      const q = query(usersRef, where("cpf", "==", formData.cpf));
+      const q = query(usersRef, where("cpf", "==", cpf));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
-        setErrors({ cpf: "Este CPF já está cadastrado em outra conta." });
+        Swal.fire('CPF já cadastrado', 'Este CPF já está associado a outra conta.', 'error');
         setIsSaving(false);
         return;
       }
       
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      await sendEmailVerification(user);
+      // await sendEmailVerification(user); // 4. Verificação de email REMOVIDA
 
       await setDoc(doc(db, 'usuarios', user.uid), {
-        nome: formData.nome,
-        cpf: formData.cpf,
-        dataNascimento: formData.dataNascimento,
-        cargo: formData.cargo,
+        nome: nome,
+        cpf: cpf,
+        dataNascimento: dataNascimento,
+        cargo: cargo,
         email: user.email
       });
 
-      alert(`Usuário criado! Um link de verificação foi enviado para ${formData.email}. Por favor, verifique sua caixa de entrada para ativar a conta.`);
+      // 5. Alerta de sucesso
+      await Swal.fire({
+        icon: 'success',
+        title: 'Usuário Criado com Sucesso!',
+        text: `O usuário ${nome} foi cadastrado. Você será redirecionado para o login.`,
+        timer: 3000,
+        timerProgressBar: true
+      });
       navigate('/login');
+
     } catch (error) {
+      console.error("Erro no cadastro:", error);
       if (error.code === 'auth/email-already-in-use') {
-        setErrors({ email: "Este e-mail já está cadastrado." });
+        Swal.fire('E-mail já cadastrado', 'Este e-mail já está associado a outra conta.', 'error');
       } else {
-        setErrors({ form: "Falha no cadastro. Verifique os dados." });
+        Swal.fire('Falha no Cadastro', 'Ocorreu um erro inesperado. Por favor, tente novamente.', 'error');
       }
     } finally {
       setIsSaving(false);
@@ -111,6 +118,7 @@ function SignUpPage() {
           <p>Preencha os dados para criar a conta.</p>
           <form onSubmit={handleSubmit}>
             <div className="form-grid-signup">
+              {/* 6. As mensagens de erro inline foram removidas dos campos */}
               <div className="input-group">
                 <label htmlFor="nome">Nome Completo</label>
                 <input id="nome" type="text" value={formData.nome} onChange={handleInputChange} required />
@@ -118,7 +126,6 @@ function SignUpPage() {
               <div className="input-group">
                 <label htmlFor="cpf">CPF</label>
                 <IMaskInput mask="000.000.000-00" id="cpf" value={formData.cpf} onAccept={(value) => handleMaskedInputChange(value, 'cpf')} required />
-                {errors.cpf && <p className="field-error">{errors.cpf}</p>}
               </div>
               <div className="input-group">
                 <label htmlFor="dataNascimento">Data de Nascimento</label>
@@ -136,7 +143,6 @@ function SignUpPage() {
               <div className="input-group">
                 <label htmlFor="email">E-mail (para login)</label>
                 <input id="email" type="email" value={formData.email} onChange={handleInputChange} required />
-                {errors.email && <p className="field-error">{errors.email}</p>}
               </div>
               <div className="input-group">
                 <label htmlFor="password">Senha</label>
@@ -148,10 +154,8 @@ function SignUpPage() {
                   placeholder="6+ caracteres, 1 maiúscula, 1 número"
                   required 
                 />
-                {errors.password && <p className="field-error">{errors.password}</p>}
               </div>
             </div>
-            {errors.form && <p className="form-error-message">{errors.form}</p>}
             <div className="signup-buttons">
               <button type="submit" className="btn-save" disabled={isSaving}>
                 {isSaving ? 'Salvando...' : 'Cadastrar Usuário'}

@@ -7,6 +7,7 @@ import logo from '../../assets/logo.png';
 import ForgotPasswordModal from "../../components/modals/ForgotPasswordModal.jsx";
 import ProfileSetupModal from "../../components/modals/ProfileSetupModal.jsx";
 import RegistrationKeyModal from "../../components/modals/RegistrationKeyModal.jsx";
+import Swal from 'sweetalert2';
 import './login.css';
 
 function LoginPage() { 
@@ -14,7 +15,6 @@ function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [location, setLocation] = useState('Tibagi');
-  const [error, setError] = useState('');
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
   const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
@@ -22,19 +22,14 @@ function LoginPage() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError('');
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // VERIFICAÇÃO ADICIONADA AQUI
-      if (!user.emailVerified) {
-        setError("Seu e-mail ainda não foi verificado. Por favor, cheque sua caixa de entrada.");
-        // Desloga o usuário para evitar que ele fique em um estado "autenticado mas não autorizado"
-        await auth.signOut(); 
-        return;
-      }
+      // ================================================================
+      // BLOCO DE VERIFICAÇÃO DE E-MAIL REMOVIDO DAQUI
+      // ================================================================
 
       localStorage.setItem('selectedLocation', location);
 
@@ -49,16 +44,23 @@ function LoginPage() {
       }
     } catch (firebaseError) {
       if (firebaseError.code === 'auth/invalid-credential') {
-        setError('E-mail ou senha inválidos.');
+        Swal.fire({
+            icon: 'error',
+            title: 'Falha no Login',
+            text: 'E-mail ou senha inválidos.',
+        });
       } else {
-        setError('Ocorreu um erro ao tentar fazer login.');
+        Swal.fire({
+            icon: 'error',
+            title: 'Ops!',
+            text: 'Ocorreu um erro inesperado ao tentar fazer login. Tente novamente mais tarde.',
+        });
       }
       setPassword('');
       console.error("Erro do Firebase:", firebaseError.code);
     }
   };
 
-  // O restante do seu componente (o JSX) continua o mesmo
   return (
     <>
       <div className="login-page-container">
@@ -87,7 +89,6 @@ function LoginPage() {
                 <label htmlFor="password">Senha</label>
                 <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Digite aqui..." />
               </div>
-              {error && <p className="error-message">{error}</p>}
               <a href="#" className="forgot-password" onClick={(e) => { e.preventDefault(); setIsForgotModalOpen(true); }}>
                 Esqueci minha senha
               </a>
