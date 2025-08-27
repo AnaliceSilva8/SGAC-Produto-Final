@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../firebase-config/config';
 import { collection, addDoc, query, getDocs, getDoc, serverTimestamp, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import DeleteConfirmationModal from '../../components/modals/DeleteConfirmationModal';
+import Swal from 'sweetalert2';
 import './ObservationsTab.css';
 
-// Lista de sugestões de texto
 const suggestions = [
   'Liguei para o cliente e pedi os seguintes documentos:',
   'Atendi o cliente hoje no escritório.',
@@ -21,7 +20,6 @@ function ObservationsTab({ client }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userInfo, setUserInfo] = useState(null);
   const [selectedObservations, setSelectedObservations] = useState([]);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -49,6 +47,11 @@ function ObservationsTab({ client }) {
       setObservations(obsList);
     } catch (error) {
       console.error("Erro ao buscar observações:", error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro de Carregamento',
+        text: 'Não foi possível carregar o histórico de observações.',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +64,16 @@ function ObservationsTab({ client }) {
   }, [client.id]);
 
   const handleAddObservation = async () => {
-    if (!observationText.trim() || !userInfo) return;
+    if (!observationText.trim()) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Campo Vazio',
+            text: 'Por favor, digite uma observação antes de adicionar.',
+        });
+        return;
+    }
+    if (!userInfo) return;
+
     try {
       const responsibleName = `${userInfo.cargo.toUpperCase()}: ${userInfo.nome.toUpperCase()}`;
       await addDoc(collection(db, `clientes/${client.id}/observacoes`), {
@@ -70,10 +82,27 @@ function ObservationsTab({ client }) {
         timestamp: serverTimestamp(),
         userId: user.uid,
       });
+
       setObservationText('');
       fetchObservations();
+      
+      Swal.fire({
+        icon: 'success',
+        title: 'Observação adicionada!',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+
     } catch (error) {
       console.error("Erro ao adicionar observação:", error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro!',
+        text: 'Não foi possível salvar a observação.',
+      });
     }
   };
   
@@ -85,30 +114,60 @@ function ObservationsTab({ client }) {
 
   const handleDeleteObservations = async () => {
     try {
-      for (const obsId of selectedObservations) {
-        await deleteDoc(doc(db, `clientes/${client.id}/observacoes`, obsId));
-      }
+      const deletePromises = selectedObservations.map(obsId => 
+        deleteDoc(doc(db, `clientes/${client.id}/observacoes`, obsId))
+      );
+      await Promise.all(deletePromises);
+
+      Swal.fire(
+        'Excluído!',
+        `A(s) ${selectedObservations.length} observação(ões) foram excluídas com sucesso.`,
+        'success'
+      );
+      
       setSelectedObservations([]);
       fetchObservations();
+
     } catch (error) {
       console.error("Erro ao excluir observações:", error);
-    } finally {
-      setIsDeleteModalOpen(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro!',
+        text: 'Falha ao excluir a(s) observação(ões).',
+      });
     }
   };
 
-  // Função para adicionar a sugestão ao texto
+  const confirmDelete = () => {
+    const count = selectedObservations.length;
+    Swal.fire({
+      title: `Excluir ${count} observação(ões)?`,
+      text: "Esta ação não pode ser desfeita!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sim, excluir!',
+      cancelButtonText: 'Cancelar'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        handleDeleteObservations();
+      }
+    });
+  };
+
   const handleSuggestionClick = (suggestion) => {
-    // Adiciona a sugestão ao texto existente, com um espaço se já houver texto
     setObservationText(prevText => prevText ? `${prevText.trim()} ${suggestion}` : suggestion);
   };
 
   return (
     <div className="observations-tab-container">
+      {/* ================================================================ */}
+      {/* INÍCIO DA SEÇÃO DE JSX QUE ESTAVA FALTANDO */}
+      {/* ================================================================ */}
       <div className="add-observation-section">
         <h3 className="client-name-header">{client.NOMECLIENTE}</h3>
         
-        {/* Container para o campo de texto e as sugestões */}
         <div className="add-observation-content">
           <textarea
             value={observationText}
@@ -130,9 +189,11 @@ function ObservationsTab({ client }) {
           <button onClick={() => setObservationText('')} className="btn-cancel-observation">Cancelar</button>
         </div>
       </div>
+      {/* ================================================================ */}
+      {/* FIM DA SEÇÃO DE JSX QUE ESTAVA FALTANDO */}
+      {/* ================================================================ */}
 
       <div className="history-section">
-        {/* O histórico de observações permanece o mesmo */}
         <h4>Histórico de observações</h4>
         <div className="observations-grid">
           <div className="observation-header select-header"></div>
@@ -162,24 +223,11 @@ function ObservationsTab({ client }) {
           )}
         </div>
         {selectedObservations.length > 0 && (
-          <button onClick={() => setIsDeleteModalOpen(true)} className="btn-delete-observation">
+          <button onClick={confirmDelete} className="btn-delete-observation">
             Excluir Observação
           </button>
         )}
       </div>
-
-      {isDeleteModalOpen && (
-        <DeleteConfirmationModal
-          onConfirm={handleDeleteObservations}
-          onCancel={() => setIsDeleteModalOpen(false)}
-          title="Confirmar Exclusão"
-          warningText="Esta ação não pode ser desfeita."
-          checkboxLabel="Sim, eu entendo e quero excluir a(s) observação(ões)."
-          confirmButtonText="Excluir"
-        >
-          Você tem certeza que deseja excluir permanentemente a(s) <strong>{selectedObservations.length}</strong> observação(ões) selecionada(s)?
-        </DeleteConfirmationModal>
-      )}
     </div>
   );
 }

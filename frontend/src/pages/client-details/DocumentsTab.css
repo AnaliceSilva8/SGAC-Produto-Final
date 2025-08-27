@@ -1,0 +1,163 @@
+.documents-tab-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  
+  .documents-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .documents-header h3 {
+    color: rgb(26, 75, 95);
+    font-size: 1.5rem;
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+
+ 
+  
+  .btn-add-document {
+    background-color: rgb(26, 75, 95);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.85rem;
+  }
+  
+  /* --- Formulário de Adicionar Documento --- */
+  .add-document-form-container {
+    background-color: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #eee;
+  }
+  
+  .add-document-form-container h4 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: #333;
+  }
+  
+  .add-document-form-container .form-inputs {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .add-document-form-container .input-group {
+    flex: 1;
+  }
+  
+  .add-document-form-container .input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+    font-size: 0.9rem;
+  }
+  
+  .add-document-form-container .input-group input[type="text"],
+  .add-document-form-container .input-group input[type="file"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 1rem;
+  }
+  
+  .add-document-form-container .form-actions {
+    display: flex;
+    gap: 1rem;
+  }
+  
+  .btn-save-document, .btn-cancel-document {
+    padding: 0.7rem 1.5rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  
+  .btn-save-document {
+    background-color: rgb(26, 75, 95);
+    color: white;
+  }
+  
+  .btn-save-document:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  .btn-cancel-document {
+    background-color: #f0f0f0;
+    color: #333;
+  }
+  
+  
+  /* --- Tabela de Documentos --- */
+  
+  .documents-list-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .doc-table-header, .doc-table-row {
+    display: grid;
+    /* Colunas: Tipo, Nome, Data, Ações, Ações */
+    grid-template-columns: 1.5fr 3fr 2fr 0.5fr 0.5fr;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .doc-table-header {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #666;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    border-bottom: 2px solid #ddd;
+  }
+  
+  .doc-cell-item {
+    word-break: break-word; /* Garante que nomes longos não quebrem o layout */
+    font-size: 0.9rem;
+  }
+  
+  .col-actions {
+    text-align: center;
+  }
+  
+  .action-icon {
+    color: #555;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 5px;
+  }
+  
+  .action-icon.delete-icon {
+    color: #c00;
+  }
+  
+  .action-icon:hover {
+    opacity: 0.7;
+  }
+  
+  .table-message {
+    padding: 2rem;
+    text-align: center;
+    color: #777;
+    font-style: italic;
+    grid-column: 1 / -1; /* Faz a mensagem ocupar todas as colunas */
+  }

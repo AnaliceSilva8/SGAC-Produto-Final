@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../firebase-config/config';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { IMaskInput } from 'react-imask';
+import Swal from 'sweetalert2'; // 1. Importar o SweetAlert
 import './ClientDetailsPage.css';
-import DeleteConfirmationModal from '../../components/modals/DeleteConfirmationModal';
-import ObservationsTab from './ObservationsTab'; // 1. IMPORTAR O NOVO COMPONENTE
+import ObservationsTab from './ObservationsTab';
+import DocumentsTab from './DocumentsTab';
 
-// Funções de validação e formatação (exatamente como no seu código)
+// Funções de validação e formatação (sem alterações)
 function isValidCPF(cpf) {
   if (typeof cpf !== 'string') return false;
   cpf = cpf.replace(/[^\d]+/g, '');
@@ -24,6 +25,7 @@ const formatDate = (dateString) => {
     return dateString;
 };
 
+
 function ClientDetailsPage() {
   const { clientId } = useParams();
   const navigate = useNavigate();
@@ -33,10 +35,10 @@ function ClientDetailsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({});
   const [errors, setErrors] = useState({});
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('dadosPessoais'); // 2. ESTADO PARA CONTROLAR A ABA ATIVA
-
-  // Todas as suas funções (fetchClient, useEffects, handleInputChange, etc.) permanecem exatamente as mesmas
+  const [activeTab, setActiveTab] = useState('dadosPessoais');
+  
+  // Funções fetchClient, useEffects, handleInputChange, etc. (sem alterações na lógica principal)
+  // ... (todo o bloco de funções até o handleSave)
   const fetchClient = async () => {
     if (!clientId) return;
     try {
@@ -112,9 +114,14 @@ function ClientDetailsPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // 2. Refatorando as funções para usar SweetAlert
   const handleSave = async () => {
     if (!validateForm()) {
-      alert("Por favor, corrija os erros indicados.");
+      Swal.fire({
+        icon: 'warning',
+        title: 'Atenção!',
+        text: 'Por favor, corrija os erros indicados.',
+      });
       return;
     }
     try {
@@ -122,10 +129,18 @@ function ClientDetailsPage() {
       await updateDoc(docRef, formData);
       setClientData(formData);
       setIsEditing(false);
-      alert("Dados salvos com sucesso!");
+      Swal.fire({
+        icon: 'success',
+        title: 'Sucesso!',
+        text: 'Dados salvos com sucesso!',
+      });
     } catch (error) {
       console.error("Erro ao salvar dados:", error);
-      alert("Falha ao salvar os dados.");
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro!',
+        text: 'Falha ao salvar os dados.',
+      });
     }
   };
   
@@ -135,23 +150,52 @@ function ClientDetailsPage() {
     setErrors({});
   };
 
+  // Esta função agora só contém a lógica de exclusão
   const handleDeleteClient = async () => {
     try {
       const docRef = doc(db, 'clientes', clientId);
       await deleteDoc(docRef);
-      alert("Cliente excluído com sucesso.");
-      navigate('/dashboard'); // Redireciona para o dashboard após a exclusão
+      // Navega para o dashboard APÓS o usuário fechar o alerta de sucesso
+      await Swal.fire(
+        'Excluído!',
+        'O cliente foi excluído com sucesso.',
+        'success'
+      );
+      navigate('/dashboard');
     } catch (error) {
       console.error("Erro ao excluir cliente:", error);
-      alert("Falha ao excluir o cliente.");
+      Swal.fire({
+        icon: 'error',
+        title: 'Erro!',
+        text: 'Falha ao excluir o cliente.',
+      });
     }
   };
+
+  // Nova função para abrir o diálogo de confirmação do SweetAlert
+  const confirmDelete = () => {
+    Swal.fire({
+      title: `Excluir ${clientData.NOMECLIENTE}?`,
+      text: "Esta ação não pode ser desfeita!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sim, excluir!',
+      cancelButtonText: 'Cancelar'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        handleDeleteClient();
+      }
+    });
+  };
+
 
   if (loading) return <div className="loading-container">Carregando ficha...</div>;
   if (!clientData) return <div className="loading-container">Cliente não encontrado.</div>;
 
   const renderField = (label, id, type = 'text') => {
-    // Sua função renderField permanece intacta
+    // ... A função renderField continua exatamente a mesma ...
     const selectFields = {
         ESTADOCIVIL: [ {value: "", label: "Selecione..."}, {value: "Solteiro(a)", label: "Solteiro(a)"}, {value: "Casado(a)", label: "Casado(a)"}, {value: "Divorciado(a)", label: "Divorciado(a)"}, {value: "Viúvo(a)", label: "Viúvo(a)"} ],
         SEXO: [ {value: "", label: "Selecione..."}, {value: "Feminino", label: "Feminino"}, {value: "Masculino", label: "Masculino"} ],
@@ -188,7 +232,6 @@ function ClientDetailsPage() {
   return (
     <>
       <div className="client-details-wrapper">
-        {/* 3. NAVEGAÇÃO DAS ABAS - AGORA INTERATIVA */}
         <nav className="tabs-nav">
             <button className={`tab-button ${activeTab === 'dadosPessoais' ? 'active' : ''}`} onClick={() => setActiveTab('dadosPessoais')}>Dados Pessoais</button>
             <button className={`tab-button ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button>
@@ -196,7 +239,6 @@ function ClientDetailsPage() {
             <button className={`tab-button ${activeTab === 'processos' ? 'active' : ''}`} onClick={() => setActiveTab('processos')}>Processos</button>
         </nav>
 
-        {/* 4. RENDERIZAÇÃO CONDICIONAL DO CONTEÚDO */}
         <div className="tab-content">
             {activeTab === 'dadosPessoais' && (
                 <>
@@ -234,7 +276,8 @@ function ClientDetailsPage() {
                         ) : (
                             <>
                                 <button className="action-btn primary" onClick={() => setIsEditing(true)}>Editar Dados</button>
-                                <button className="action-btn delete" onClick={() => setIsDeleteModalOpen(true)}>Excluir Cliente</button>
+                                {/* 3. O botão de excluir agora chama a função de confirmação */}
+                                <button className="action-btn delete" onClick={confirmDelete}>Excluir Cliente</button>
                                 <button className="action-btn">Gerar Contratos</button>
                             </>
                         )}
@@ -243,19 +286,12 @@ function ClientDetailsPage() {
             )}
 
             {activeTab === 'observacoes' && <ObservationsTab client={clientData} />}
-
-            {activeTab === 'documentos' && <div><h4>Funcionalidade de Documentos em construção.</h4></div>}
+            {activeTab === 'documentos' && <DocumentsTab client={clientData} />}
             {activeTab === 'processos' && <div><h4>Funcionalidade de Processos em construção.</h4></div>}
         </div>
       </div>
 
-      {isDeleteModalOpen && (
-        <DeleteConfirmationModal
-          clientName={clientData.NOMECLIENTE}
-          onConfirm={handleDeleteClient}
-          onCancel={() => setIsDeleteModalOpen(false)}
-        />
-      )}
+      {/* 4. O modal antigo foi removido, pois o SweetAlert cuida disso agora */}
     </>
   );
 }
