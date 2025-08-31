@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../firebase-config/config';
-import { collection, addDoc, query, getDocs, getDoc, serverTimestamp, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, query, getDoc, serverTimestamp, orderBy, doc, deleteDoc, where, onSnapshot } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import Swal from 'sweetalert2';
 import './ObservationsTab.css';
+import { logHistoryEvent } from '../../utils/historyLogger';
 
 const suggestions = [
   'Liguei para o cliente e pedi os seguintes documentos:',
@@ -34,75 +35,71 @@ function ObservationsTab({ client }) {
     fetchUserInfo();
   }, [user]);
 
-  const fetchObservations = async () => {
-    setIsLoading(true);
-    try {
-      const q = query(collection(db, `clientes/${client.id}/observacoes`), orderBy('timestamp', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const obsList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate()
-      }));
-      setObservations(obsList);
-    } catch (error) {
-      console.error("Erro ao buscar observações:", error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Erro de Carregamento',
-        text: 'Não foi possível carregar o histórico de observações.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // EFEITO CORRIGIDO: Agora usa onSnapshot para atualizações em tempo real
   useEffect(() => {
-    if (client.id) {
-      fetchObservations();
-    }
-  }, [client.id]);
-
-  const handleAddObservation = async () => {
-    if (!observationText.trim()) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Campo Vazio',
-            text: 'Por favor, digite uma observação antes de adicionar.',
-        });
+    if (!client?.id) {
+        setObservations([]);
+        setIsLoading(false);
         return;
     }
-    if (!userInfo) return;
+
+    setIsLoading(true);
+    const q = query(
+        collection(db, 'observacoes'),
+        where("clientId", "==", client.id),
+        orderBy('timestamp', 'desc')
+    );
+
+    // A função onSnapshot "ouve" as mudanças no banco de dados
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const obsList = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: doc.data().timestamp?.toDate()
+        }));
+        setObservations(obsList);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Erro ao ouvir observações:", error);
+        setIsLoading(false);
+    });
+
+    // Função de limpeza: para de "ouvir" quando o componente é desmontado
+    return () => unsubscribe();
+
+  }, [client]); // Dependência: refaz a "escuta" se o cliente mudar
+
+  const handleAddObservation = async () => {
+    if (!observationText.trim() || !userInfo) {
+        Swal.fire('Atenção!', 'Digite uma observação e certifique-se de estar logado.', 'warning');
+        return;
+    }
 
     try {
       const responsibleName = `${userInfo.cargo.toUpperCase()}: ${userInfo.nome.toUpperCase()}`;
-      await addDoc(collection(db, `clientes/${client.id}/observacoes`), {
+      // A lógica de adicionar continua a mesma
+      await addDoc(collection(db, 'observacoes'), {
+        clientId: client.id,
         descricao: observationText,
         responsavel: responsibleName,
         timestamp: serverTimestamp(),
         userId: user.uid,
       });
+      
+      const responsavelLog = userInfo.nome || user.email;
+      await logHistoryEvent(client.id, `Adicionou a observação: "${observationText}"`, responsavelLog);
 
       setObservationText('');
-      fetchObservations();
-      
+      // NÃO PRECISA MAIS CHAMAR fetchObservations() AQUI, a atualização é automática
+
       Swal.fire({
-        icon: 'success',
-        title: 'Observação adicionada!',
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true,
+        icon: 'success', title: 'Observação adicionada!', toast: true,
+        position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
       });
 
     } catch (error) {
       console.error("Erro ao adicionar observação:", error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Erro!',
-        text: 'Não foi possível salvar a observação.',
-      });
+      Swal.fire('Erro!', 'Não foi possível salvar a observação.', 'error');
     }
   };
   
@@ -115,44 +112,31 @@ function ObservationsTab({ client }) {
   const handleDeleteObservations = async () => {
     try {
       const deletePromises = selectedObservations.map(obsId => 
-        deleteDoc(doc(db, `clientes/${client.id}/observacoes`, obsId))
+        deleteDoc(doc(db, 'observacoes', obsId))
       );
       await Promise.all(deletePromises);
-
-      Swal.fire(
-        'Excluído!',
-        `A(s) ${selectedObservations.length} observação(ões) foram excluídas com sucesso.`,
-        'success'
-      );
       
-      setSelectedObservations([]);
-      fetchObservations();
+      const responsavelLog = userInfo.nome || user.email;
+      await logHistoryEvent(client.id, `Excluiu ${selectedObservations.length} observação(ões)`, responsavelLog);
 
-    } catch (error) {
+      // A lista vai se atualizar sozinha, mas o Swal e a limpeza do state são necessários
+      Swal.fire('Excluído!', `A(s) ${selectedObservations.length} observação(ões) foram excluídas.`, 'success');
+      setSelectedObservations([]);
+
+    } catch (error)      {
       console.error("Erro ao excluir observações:", error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Erro!',
-        text: 'Falha ao excluir a(s) observação(ões).',
-      });
+      Swal.fire('Erro!', 'Falha ao excluir a(s) observação(ões).', 'error');
     }
   };
 
   const confirmDelete = () => {
-    const count = selectedObservations.length;
     Swal.fire({
-      title: `Excluir ${count} observação(ões)?`,
-      text: "Esta ação não pode ser desfeita!",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Sim, excluir!',
-      cancelButtonText: 'Cancelar'
+      title: `Excluir ${selectedObservations.length} observação(ões)?`,
+      text: "Esta ação não pode ser desfeita!", icon: 'warning', showCancelButton: true,
+      confirmButtonColor: '#d33', cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sim, excluir!', cancelButtonText: 'Cancelar'
     }).then((result) => {
-      if (result.isConfirmed) {
-        handleDeleteObservations();
-      }
+      if (result.isConfirmed) handleDeleteObservations();
     });
   };
 
@@ -162,19 +146,11 @@ function ObservationsTab({ client }) {
 
   return (
     <div className="observations-tab-container">
-      {/* ================================================================ */}
-      {/* INÍCIO DA SEÇÃO DE JSX QUE ESTAVA FALTANDO */}
-      {/* ================================================================ */}
       <div className="add-observation-section">
         <h3 className="client-name-header">{client.NOMECLIENTE}</h3>
-        
         <div className="add-observation-content">
-          <textarea
-            value={observationText}
-            onChange={(e) => setObservationText(e.target.value)}
-            placeholder="Digite aqui sua observação..."
-            className="observation-textarea"
-          />
+          <textarea value={observationText} onChange={(e) => setObservationText(e.target.value)}
+            placeholder="Digite aqui sua observação..." className="observation-textarea"/>
           <div className="suggestions-list">
             {suggestions.map((text, index) => (
               <button key={index} onClick={() => handleSuggestionClick(text)} className="suggestion-item">
@@ -183,16 +159,11 @@ function ObservationsTab({ client }) {
             ))}
           </div>
         </div>
-
         <div className="observation-buttons">
           <button onClick={handleAddObservation} className="btn-add-observation">Adicionar observação</button>
           <button onClick={() => setObservationText('')} className="btn-cancel-observation">Cancelar</button>
         </div>
       </div>
-      {/* ================================================================ */}
-      {/* FIM DA SEÇÃO DE JSX QUE ESTAVA FALTANDO */}
-      {/* ================================================================ */}
-
       <div className="history-section">
         <h4>Histórico de observações</h4>
         <div className="observations-grid">
@@ -202,17 +173,14 @@ function ObservationsTab({ client }) {
           <div className="observation-header">Descrição</div>
           <div className="observation-header observation-responsible-header">Responsável</div>
           {isLoading ? (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem' }}>Carregando histórico...</div>
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem' }}>Carregando...</div>
           ) : (
             observations.map(obs => (
               <React.Fragment key={obs.id}>
                 <div className="observation-cell cell-select">
-                  <input
-                    type="checkbox"
-                    className="observation-checkbox"
+                  <input type="checkbox" className="observation-checkbox"
                     checked={selectedObservations.includes(obs.id)}
-                    onChange={() => handleSelectObservation(obs.id)}
-                  />
+                    onChange={() => handleSelectObservation(obs.id)} />
                 </div>
                 <div className="observation-cell">{obs.timestamp?.toLocaleDateString('pt-BR')}</div>
                 <div className="observation-cell">{obs.timestamp?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>

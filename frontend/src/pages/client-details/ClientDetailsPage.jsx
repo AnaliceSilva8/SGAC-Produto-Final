@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+// frontend/src/pages/client-details/ClientDetailsPage.jsx
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { db, storage } from '../../firebase-config/config';
+import { db, storage, auth } from '../../firebase-config/config';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import { IMaskInput } from 'react-imask';
 import Swal from 'sweetalert2';
 import { FaUserCircle } from 'react-icons/fa';
 import './ClientDetailsPage.css';
 import ObservationsTab from './ObservationsTab';
 import DocumentsTab from './DocumentsTab';
+import HistoricoCompletoTab from './HistoricoCompletoTab';
+import { logHistoryEvent } from '../../utils/historyLogger';
 
 // Funções de validação e formatação
 function isValidCPF(cpf) {
@@ -38,8 +43,10 @@ function ClientDetailsPage() {
     const [activeTab, setActiveTab] = useState('dadosPessoais');
     const [photoFile, setPhotoFile] = useState(null);
     const [photoPreview, setPhotoPreview] = useState(null);
+    const [user] = useAuthState(auth);
+    const [userInfo, setUserInfo] = useState(null);
 
-    const fetchClient = async () => {
+    const fetchClient = useCallback(async () => {
         if (!clientId) return;
         try {
             setLoading(true);
@@ -55,11 +62,24 @@ function ClientDetailsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [clientId]);
 
     useEffect(() => {
         fetchClient();
-    }, [clientId]);
+    }, [fetchClient]);
+
+    useEffect(() => {
+        const fetchUserInfo = async () => {
+          if (user) {
+            const userDocRef = doc(db, 'usuarios', user.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+              setUserInfo(userDoc.data());
+            }
+          }
+        };
+        fetchUserInfo();
+    }, [user]);
     
     useEffect(() => {
         if (isEditing && formData.DATANASCIMENTO) {
@@ -74,7 +94,6 @@ function ClientDetailsPage() {
         }
     }, [formData.DATANASCIMENTO, isEditing]);
 
-    // As funções de handle e validação agora estão no mesmo escopo do JSX
     const handleInputChange = (e) => {
         const { id, value } = e.target;
         if (errors[id]) setErrors(prev => ({...prev, [id]: null}));
@@ -104,8 +123,8 @@ function ClientDetailsPage() {
     };
 
     const handleSave = async () => {
-        if (!validateForm()) {
-            Swal.fire('Atenção!', 'Por favor, corrija os erros indicados.', 'warning');
+        if (!validateForm() || !userInfo) {
+            Swal.fire('Atenção!', 'Corrija os erros ou aguarde a identificação do usuário.', 'warning');
             return;
         }
         try {
@@ -118,6 +137,10 @@ function ClientDetailsPage() {
             }
             const docRef = doc(db, 'clientes', clientId);
             await updateDoc(docRef, dataToSave);
+            
+            const responsavel = userInfo.nome || user.email;
+            await logHistoryEvent(clientId, 'Dados Pessoais Editados', responsavel);
+
             setClientData(dataToSave);
             setIsEditing(false);
             setPhotoFile(null);
@@ -138,9 +161,17 @@ function ClientDetailsPage() {
     };
 
     const handleDeleteClient = async () => {
+        if (!userInfo) {
+            Swal.fire("Erro!", "Não foi possível identificar o usuário para registrar a ação.", "error");
+            return;
+        }
         try {
             const docRef = doc(db, 'clientes', clientId);
             await deleteDoc(docRef);
+            
+            const responsavel = userInfo.nome || user.email;
+            await logHistoryEvent(clientId, 'Cliente Excluído', responsavel);
+
             await Swal.fire('Excluído!', 'O cliente foi excluído com sucesso.', 'success');
             navigate('/dashboard');
         } catch (error) {
@@ -170,7 +201,6 @@ function ClientDetailsPage() {
         const { type = 'text', mask, selectOptions } = options;
         const value = isEditing ? formData[id] : clientData[id];
         const displayValue = id === 'DATANASCIMENTO' && !isEditing ? formatDate(value) : value;
-
         return (
             <div className="data-field">
                 <label>{label}</label>
@@ -201,7 +231,6 @@ function ClientDetailsPage() {
         );
     };
 
-
     if (loading) return <div className="loading-container">Carregando ficha...</div>;
     if (!clientData) return <div className="loading-container">Cliente não encontrado.</div>;
 
@@ -212,6 +241,7 @@ function ClientDetailsPage() {
                 <button className={`tab-button ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button>
                 <button className={`tab-button ${activeTab === 'observacoes' ? 'active' : ''}`} onClick={() => setActiveTab('observacoes')}>Observações</button>
                 <button className={`tab-button ${activeTab === 'processos' ? 'active' : ''}`} onClick={() => setActiveTab('processos')}>Processos</button>
+                <button className={`tab-button ${activeTab === 'historico' ? 'active' : ''}`} onClick={() => setActiveTab('historico')}>Histórico Completo</button>
             </nav>
 
             <div className="tab-content">
@@ -280,6 +310,7 @@ function ClientDetailsPage() {
                 {activeTab === 'observacoes' && <ObservationsTab client={clientData} />}
                 {activeTab === 'documentos' && <DocumentsTab client={clientData} />}
                 {activeTab === 'processos' && <div><h4>Funcionalidade de Processos em construção.</h4></div>}
+                {activeTab === 'historico' && <HistoricoCompletoTab client={clientData} />}
             </div>
         </div>
     );

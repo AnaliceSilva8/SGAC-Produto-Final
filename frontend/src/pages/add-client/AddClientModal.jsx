@@ -1,10 +1,16 @@
 // frontend/src/pages/add-client/AddClientModal.jsx
+
 import React, { useState, useEffect } from 'react';
-import { db } from '../../firebase-config/config';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+// Corrigido: Removida a importação duplicada de 'db' e corrigido o caminho
+import { db, auth } from '../../firebase-config/config'; 
+import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import { IMaskInput } from 'react-imask';
-import SuccessModal from '../../components/modals/success/SuccessModal'; // 1. IMPORTA O NOVO MODAL
+import SuccessModal from '../../components/modals/success/SuccessModal';
+// Corrigido: Ajustado o caminho para a função de log
+import { logHistoryEvent } from '../../utils/historyLogger'; 
 import './AddClientModal.css';
+
 
 function isValidCPF(cpf) {
   if (typeof cpf !== 'string') return false;
@@ -24,9 +30,24 @@ function AddClientModal({ onClose, onClientAdded }) {
   });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false); // 2. ESTADO PARA CONTROLAR O MODAL DE SUCESSO
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [user] = useAuthState(auth);
+  const [userInfo, setUserInfo] = useState(null);
   
   const selectedLocation = localStorage.getItem('selectedLocation');
+
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+        if (user) {
+            const userDocRef = doc(db, 'usuarios', user.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+                setUserInfo(userDoc.data());
+            }
+        }
+    };
+    fetchUserInfo();
+  }, [user]);
 
   useEffect(() => {
     if (formData.DATANASCIMENTO) {
@@ -102,12 +123,18 @@ function AddClientModal({ onClose, onClientAdded }) {
         return;
       }
 
-      await addDoc(collection(db, 'clientes'), {
+      const docRef = await addDoc(collection(db, 'clientes'), {
         ...formData,
         LOCATION: selectedLocation,
         DATA_CADASTRO: serverTimestamp()
       });
-      setShowSuccessModal(true); // 3. MOSTRA O MODAL DE SUCESSO
+      
+      // LOG DE HISTÓRICO
+      if(userInfo) {
+          await logHistoryEvent(docRef.id, 'Cliente Cadastrado', userInfo.nome || user.email);
+      }
+
+      setShowSuccessModal(true);
     } catch (error) {
       console.error("Erro ao adicionar cliente:", error);
       alert("Falha ao adicionar cliente.");
@@ -118,10 +145,10 @@ function AddClientModal({ onClose, onClientAdded }) {
   
   const handleSuccessModalClose = () => {
     setShowSuccessModal(false);
-    onClientAdded(); // Atualiza a lista de clientes
-    onClose(); // Fecha o modal de cadastro
+    onClientAdded();
+    onClose();
   };
-
+  
   return (
     <>
       <div className="modal-overlay" onClick={onClose}>

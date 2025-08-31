@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { storage, auth, db } from '../../firebase-config/config';
 import { ref, uploadBytes, listAll, getDownloadURL, deleteObject, getMetadata } from 'firebase/storage';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import './DocumentsTab.css';
 import Swal from 'sweetalert2';
+import { logHistoryEvent } from '../../utils/historyLogger';
+import './DocumentsTab.css';
+
 
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
@@ -38,8 +40,7 @@ function DocumentsTab({ client }) {
     fetchUserInfo();
   }, [user]);
 
-  const fetchFiles = async () => {
-    // ... (lógica de busca de arquivos continua a mesma)
+  const fetchFiles = useCallback(async () => {
     setFileList([]);
     setIsLoading(true);
     try {
@@ -49,15 +50,19 @@ function DocumentsTab({ client }) {
       const filesPromises = res.items.map(async (itemRef) => {
         const url = await getDownloadURL(itemRef);
         const metadata = await getMetadata(itemRef);
-        const [type, ...nameParts] = metadata.name.split('___');
+        // Evita erro se o nome do arquivo não tiver o prefixo
+        const nameParts = metadata.name.split('___');
+        const type = nameParts.length > 1 ? nameParts[0].replace(/-/g, ' ') : 'Desconhecido';
+        const name = nameParts.length > 1 ? nameParts.slice(1).join('___') : metadata.name;
+
         const responsibleName = metadata.customMetadata?.responsibleUserName || 'Não identificado';
         const responsibleCargo = metadata.customMetadata?.responsibleUserCargo || '';
         const responsibleDisplay = responsibleCargo 
           ? `${responsibleCargo.toUpperCase()}: ${responsibleName.toUpperCase()}`
           : responsibleName.toUpperCase();
         return {
-          name: nameParts.join('___'),
-          type: type.replace(/-/g, ' '),
+          name: name,
+          type: type,
           url: url,
           fullPath: itemRef.fullPath,
           date: metadata.timeCreated,
@@ -69,17 +74,19 @@ function DocumentsTab({ client }) {
       setFileList(files);
     } catch (error) {
       console.error("Erro ao buscar documentos:", error);
-      Swal.fire("Erro!", "Falha ao buscar os documentos.", "error");
+      if (error.code !== 'storage/object-not-found') {
+        Swal.fire("Erro!", "Falha ao buscar os documentos.", "error");
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [client]);
 
   useEffect(() => {
-    if (client.id) {
+    if (client?.id) {
         fetchFiles();
     }
-  }, [client.id]);
+  }, [client, fetchFiles]);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -89,16 +96,13 @@ function DocumentsTab({ client }) {
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!selectedFile || !documentType.trim()) {
-      Swal.fire("Atenção!", "Por favor, preencha o tipo e selecione um arquivo.", "warning");
+    if (!selectedFile || !documentType.trim() || !userInfo) {
+      Swal.fire("Atenção!", "Por favor, preencha o tipo, selecione um arquivo e certifique-se de estar logado.", "warning");
       return;
     }
-    if (!userInfo) {
-        Swal.fire("Erro!", "Não foi possível identificar o usuário. Por favor, tente novamente.", "error");
-        return;
-    }
     setIsUploading(true);
-    const sanitizedType = documentType.trim().replace(/\s+/g, '-');
+    const tipoDocumentoFormatado = documentType.trim();
+    const sanitizedType = tipoDocumentoFormatado.replace(/\s+/g, '-');
     const newFileName = `${sanitizedType}___${selectedFile.name}`;
     const filePath = `clientes/${client.id}/${newFileName}`;
     const fileRef = ref(storage, filePath);
@@ -110,6 +114,11 @@ function DocumentsTab({ client }) {
     };
     try {
       await uploadBytes(fileRef, selectedFile, metadata);
+      
+      const responsavel = userInfo.nome || user.email;
+      const acao = `Anexou o documento do tipo '${tipoDocumentoFormatado}' (${selectedFile.name})`;
+      await logHistoryEvent(client.id, acao, responsavel);
+
       Swal.fire('Sucesso!', 'Documento enviado com sucesso!', 'success');
       resetAddForm();
       fetchFiles();
@@ -121,9 +130,9 @@ function DocumentsTab({ client }) {
     }
   };
 
-  const confirmDelete = (filePath, fileName) => {
+  const confirmDelete = (file) => {
     Swal.fire({
-      title: `Excluir "${fileName}"?`,
+      title: `Excluir "${file.name}"?`,
       text: "Esta ação não pode ser desfeita!",
       icon: 'warning',
       showCancelButton: true,
@@ -133,15 +142,24 @@ function DocumentsTab({ client }) {
       cancelButtonText: 'Cancelar'
     }).then(async (result) => {
       if (result.isConfirmed) {
-        handleDeleteFile(filePath);
+        handleDeleteFile(file);
       }
     });
   };
 
-  const handleDeleteFile = async (filePath) => {
+  const handleDeleteFile = async (file) => {
+    if (!userInfo) {
+        Swal.fire("Erro!", "Não foi possível identificar o usuário para registrar a ação.", "error");
+        return;
+    }
     try {
-      const fileRef = ref(storage, filePath);
+      const fileRef = ref(storage, file.fullPath);
       await deleteObject(fileRef);
+
+      const responsavel = userInfo.nome || user.email;
+      const acao = `Excluiu o documento do tipo '${file.type}' (${file.name})`;
+      await logHistoryEvent(client.id, acao, responsavel);
+
       Swal.fire('Excluído!', 'O documento foi excluído com sucesso.', 'success');
       fetchFiles();
     } catch (error) {
@@ -158,9 +176,6 @@ function DocumentsTab({ client }) {
 
   return (
     <div className="documents-tab-container">
-      {/* ================================================================ */}
-      {/* INÍCIO DA SEÇÃO QUE FOI RESTAURADA */}
-      {/* ================================================================ */}
       <div className="documents-header">
         <h3>Documentos de {client.NOMECLIENTE}</h3>
         {!showAddForm && (
@@ -169,9 +184,6 @@ function DocumentsTab({ client }) {
           </button>
         )}
       </div>
-      {/* ================================================================ */}
-      {/* FIM DA SEÇÃO RESTAURADA */}
-      {/* ================================================================ */}
 
       {showAddForm && (
         <div className="add-document-form-container">
@@ -215,6 +227,8 @@ function DocumentsTab({ client }) {
           <div className="doc-header-item col-actions">Excluir</div>
         </div>
         
+        {isLoading && <div className="table-message">Carregando documentos...</div>}
+        
         {!isLoading && fileList.length === 0 && (
           <div className="table-message">Nenhum documento encontrado.</div>
         )}
@@ -231,7 +245,7 @@ function DocumentsTab({ client }) {
               </a>
             </div>
             <div className="doc-cell-item col-actions">
-              <button onClick={() => confirmDelete(file.fullPath, file.name)} className="action-icon delete-icon">
+              <button onClick={() => confirmDelete(file)} className="action-icon delete-icon">
                 <i className="fa-regular fa-trash-can"></i>
               </button>
             </div>
