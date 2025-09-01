@@ -14,6 +14,7 @@ import ObservationsTab from './ObservationsTab';
 import DocumentsTab from './DocumentsTab';
 import HistoricoCompletoTab from './HistoricoCompletoTab';
 import { logHistoryEvent } from '../../utils/historyLogger';
+import GenerateContractModal from '../../components/modals/GenerateContractModal';
 
 // Funções de validação e formatação
 function isValidCPF(cpf) {
@@ -45,6 +46,7 @@ function ClientDetailsPage() {
     const [photoPreview, setPhotoPreview] = useState(null);
     const [user] = useAuthState(auth);
     const [userInfo, setUserInfo] = useState(null);
+    const [isContractModalOpen, setIsContractModalOpen] = useState(false);
 
     const fetchClient = useCallback(async () => {
         if (!clientId) return;
@@ -56,6 +58,9 @@ function ClientDetailsPage() {
                 const data = { id: docSnap.id, ...docSnap.data() };
                 setClientData(data);
                 setFormData(data);
+            } else {
+                console.log("Cliente não encontrado!");
+                setClientData(null);
             }
         } catch (error) {
             console.error("Erro ao buscar cliente:", error);
@@ -67,6 +72,10 @@ function ClientDetailsPage() {
     useEffect(() => {
         fetchClient();
     }, [fetchClient]);
+    
+    const handleContractsGenerated = () => {
+        fetchClient();
+    };
 
     useEffect(() => {
         const fetchUserInfo = async () => {
@@ -301,17 +310,25 @@ function ClientDetailsPage() {
                                 <>
                                     <button className="action-btn primary" onClick={() => setIsEditing(true)}>Editar Dados</button>
                                     <button className="action-btn delete" onClick={confirmDelete}>Excluir Cliente</button>
-                                    <button className="action-btn">Gerar Contratos</button>
+                                    <button className="action-btn" onClick={() => setIsContractModalOpen(true)}>Gerar Contratos</button>
                                 </>
                             )}
                         </div>
                     </>
                 )}
                 {activeTab === 'observacoes' && <ObservationsTab client={clientData} />}
-                {activeTab === 'documentos' && <DocumentsTab client={clientData} />}
+                {activeTab === 'documentos' && <DocumentsTab client={clientData} onDataChange={fetchClient} />}
                 {activeTab === 'processos' && <div><h4>Funcionalidade de Processos em construção.</h4></div>}
                 {activeTab === 'historico' && <HistoricoCompletoTab client={clientData} />}
             </div>
+
+            {isContractModalOpen && (
+                <GenerateContractModal
+                    client={clientData}
+                    onClose={() => setIsContractModalOpen(false)}
+                    onContractsGenerated={handleContractsGenerated}
+                />
+            )}
         </div>
     );
 }
