@@ -27,9 +27,12 @@ function GenerateContractModal({ client, onClose, onContractsGenerated }) {
   const [missingFields, setMissingFields] = useState([]);
 
   useEffect(() => {
-    const fieldsToCheck = Object.keys(REQUIRED_FIELDS);
-    const missing = fieldsToCheck.filter(field => !client[field] || String(client[field]).trim() === '');
-    setMissingFields(missing);
+    // Adicionamos uma verificação para garantir que 'client' não seja nulo
+    if (client) {
+        const fieldsToCheck = Object.keys(REQUIRED_FIELDS);
+        const missing = fieldsToCheck.filter(field => !client[field] || String(client[field]).trim() === '');
+        setMissingFields(missing);
+    }
   }, [client]);
 
   const handleSelect = (contractId) => {
@@ -41,6 +44,10 @@ function GenerateContractModal({ client, onClose, onContractsGenerated }) {
   };
 
   const handleGenerate = async () => {
+    // --- PASSO DE DIAGNÓSTICO CRUCIAL ---
+    // Esta linha nos mostrará exatamente o que o modal está tentando enviar.
+    console.log("Dados do cliente recebidos pelo modal:", client);
+
     if (missingFields.length > 0) {
       Swal.fire('Atenção!', 'Não é possível gerar documentos. Há dados obrigatórios faltando.', 'warning');
       return;
@@ -49,14 +56,21 @@ function GenerateContractModal({ client, onClose, onContractsGenerated }) {
       Swal.fire('Atenção!', 'Selecione ao menos um documento para gerar.', 'info');
       return;
     }
+    // Verificação final para garantir que o ID existe antes de enviar
+    if (!client || !client.id) {
+        Swal.fire('Erro Crítico!', 'O ID do cliente não foi encontrado. Por favor, recarregue a página e tente novamente.', 'error');
+        console.error("Tentativa de gerar contrato sem client.id. Objeto client:", client);
+        return;
+    }
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/gerar-contratos', {
+      const apiUrl = process.env.REACT_APP_API_URL;
+      const response = await fetch(`${apiUrl}/api/gerar-contratos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId: client.id,
+          clientId: client.id, 
           contractTypes: selected,
         }),
       });
@@ -79,6 +93,11 @@ function GenerateContractModal({ client, onClose, onContractsGenerated }) {
   };
 
   const canGenerate = missingFields.length === 0;
+
+  // Verificação para evitar erro caso 'client' seja nulo momentaneamente
+  if (!client) {
+    return null; 
+  }
 
   return (
     <div className="modal-overlay">

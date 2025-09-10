@@ -16,7 +16,7 @@ import HistoricoCompletoTab from './HistoricoCompletoTab';
 import { logHistoryEvent } from '../../utils/historyLogger';
 import GenerateContractModal from '../../components/modals/GenerateContractModal';
 
-// Funções de validação e formatação
+// Funções de validação e formatação (sem alterações)
 function isValidCPF(cpf) {
   if (typeof cpf !== 'string') return false;
   cpf = cpf.replace(/[^\d]+/g, '');
@@ -36,10 +36,11 @@ const formatDate = (dateString) => {
 function ClientDetailsPage() {
     const { clientId } = useParams();
     const navigate = useNavigate();
-    const [clientData, setClientData] = useState(null);
+    // --- CORREÇÃO FINAL: Usamos um único estado para os dados do cliente e um estado separado para o formulário de edição ---
+    const [client, setClient] = useState(null); 
+    const [formData, setFormData] = useState(null); // Estado apenas para o formulário de edição
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({});
     const [errors, setErrors] = useState({});
     const [activeTab, setActiveTab] = useState('dadosPessoais');
     const [photoFile, setPhotoFile] = useState(null);
@@ -56,42 +57,36 @@ function ClientDetailsPage() {
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = { id: docSnap.id, ...docSnap.data() };
-                setClientData(data);
-                setFormData(data);
+                setClient(data); // Armazena os dados originais, incluindo o ID
+                setFormData(data); // Inicializa o formulário com os dados
             } else {
-                console.log("Cliente não encontrado!");
-                setClientData(null);
+                Swal.fire("Erro", "Cliente não encontrado.", "error");
+                navigate("/dashboard");
             }
         } catch (error) {
             console.error("Erro ao buscar cliente:", error);
         } finally {
             setLoading(false);
         }
-    }, [clientId]);
+    }, [clientId, navigate]);
 
     useEffect(() => {
         fetchClient();
     }, [fetchClient]);
     
-    const handleContractsGenerated = () => {
-        fetchClient();
-    };
-
     useEffect(() => {
         const fetchUserInfo = async () => {
           if (user) {
             const userDocRef = doc(db, 'usuarios', user.uid);
             const userDoc = await getDoc(userDocRef);
-            if (userDoc.exists()) {
-              setUserInfo(userDoc.data());
-            }
+            if (userDoc.exists()) { setUserInfo(userDoc.data()); }
           }
         };
         fetchUserInfo();
     }, [user]);
     
     useEffect(() => {
-        if (isEditing && formData.DATANASCIMENTO) {
+        if (isEditing && formData?.DATANASCIMENTO) {
             const birthDate = new Date(formData.DATANASCIMENTO);
             if (!isNaN(birthDate.getTime())) {
                 const today = new Date();
@@ -101,7 +96,7 @@ function ClientDetailsPage() {
                 setFormData(prevState => ({ ...prevState, IDADE: age >= 0 ? age.toString() : '' }));
             }
         }
-    }, [formData.DATANASCIMENTO, isEditing]);
+    }, [formData?.DATANASCIMENTO, isEditing]);
 
     const handleInputChange = (e) => {
         const { id, value } = e.target;
@@ -137,33 +132,32 @@ function ClientDetailsPage() {
             return;
         }
         try {
-            let dataToSave = { ...formData };
+            const dataToSave = { ...formData };
             if (photoFile) {
                 const storageRef = ref(storage, `clientes/${clientId}/profilePicture.jpg`);
                 await uploadBytes(storageRef, photoFile);
-                const downloadURL = await getDownloadURL(storageRef);
-                dataToSave.photoURL = downloadURL;
+                dataToSave.photoURL = await getDownloadURL(storageRef);
             }
             const docRef = doc(db, 'clientes', clientId);
+            delete dataToSave.id; // Remove o ID antes de salvar no Firestore
             await updateDoc(docRef, dataToSave);
             
             const responsavel = userInfo.nome || user.email;
             await logHistoryEvent(clientId, 'Dados Pessoais Editados', responsavel);
 
-            setClientData(dataToSave);
             setIsEditing(false);
             setPhotoFile(null);
             setPhotoPreview(null);
             Swal.fire('Sucesso!', 'Dados salvos com sucesso!', 'success');
+            fetchClient(); // Re-busca os dados para garantir consistência
         } catch (error) {
-            console.error("Erro ao salvar dados:", error);
             Swal.fire('Erro!', 'Falha ao salvar os dados.', 'error');
         }
     };
 
     const handleCancelEdit = () => {
         setIsEditing(false);
-        setFormData(clientData);
+        setFormData(client); // Restaura o formulário com os dados originais
         setErrors({});
         setPhotoFile(null);
         setPhotoPreview(null);
@@ -177,21 +171,17 @@ function ClientDetailsPage() {
         try {
             const docRef = doc(db, 'clientes', clientId);
             await deleteDoc(docRef);
-            
-            const responsavel = userInfo.nome || user.email;
-            await logHistoryEvent(clientId, 'Cliente Excluído', responsavel);
-
+            await logHistoryEvent(clientId, 'Cliente Excluído', userInfo.nome || user.email);
             await Swal.fire('Excluído!', 'O cliente foi excluído com sucesso.', 'success');
             navigate('/dashboard');
         } catch (error) {
-            console.error("Erro ao excluir cliente:", error);
             Swal.fire('Erro!', 'Falha ao excluir o cliente.', 'error');
         }
     };
 
     const confirmDelete = () => {
         Swal.fire({
-            title: `Excluir ${clientData.NOMECLIENTE}?`,
+            title: `Excluir ${client.NOMECLIENTE}?`,
             text: "Esta ação não pode ser desfeita!",
             icon: 'warning',
             showCancelButton: true,
@@ -208,8 +198,8 @@ function ClientDetailsPage() {
 
     const renderField = (label, id, options = {}) => {
         const { type = 'text', mask, selectOptions } = options;
-        const value = isEditing ? formData[id] : clientData[id];
-        const displayValue = id === 'DATANASCIMENTO' && !isEditing ? formatDate(value) : value;
+        const valueToDisplay = isEditing ? formData[id] : client[id];
+        const displayValue = id === 'DATANASCIMENTO' && !isEditing ? formatDate(valueToDisplay) : valueToDisplay;
         return (
             <div className="data-field">
                 <label>{label}</label>
@@ -239,32 +229,21 @@ function ClientDetailsPage() {
             </div>
         );
     };
-
-    if (loading) return <div className="loading-container">Carregando ficha...</div>;
-    if (!clientData) return <div className="loading-container">Cliente não encontrado.</div>;
-
-    return (
-        <div className="client-details-wrapper">
-            <nav className="tabs-nav">
-                <button className={`tab-button ${activeTab === 'dadosPessoais' ? 'active' : ''}`} onClick={() => setActiveTab('dadosPessoais')}>Dados Pessoais</button>
-                <button className={`tab-button ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button>
-                <button className={`tab-button ${activeTab === 'observacoes' ? 'active' : ''}`} onClick={() => setActiveTab('observacoes')}>Observações</button>
-                <button className={`tab-button ${activeTab === 'processos' ? 'active' : ''}`} onClick={() => setActiveTab('processos')}>Processos</button>
-                <button className={`tab-button ${activeTab === 'historico' ? 'active' : ''}`} onClick={() => setActiveTab('historico')}>Histórico Completo</button>
-            </nav>
-
-            <div className="tab-content">
-                {activeTab === 'dadosPessoais' && (
+    
+    const renderContent = () => {
+        switch (activeTab) {
+            case 'dadosPessoais':
+                return (
                     <>
                         <div className="personal-data-layout">
                             <div className="photo-section">
                                 <div className="photo-container">
                                     <img 
-                                        src={photoPreview || formData.photoURL || 'placeholder.png'}
+                                        src={photoPreview || (isEditing ? formData?.photoURL : client?.photoURL) || 'placeholder.png'}
                                         alt="Foto do Cliente" 
                                         onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
                                     />
-                                    <div className="photo-placeholder" style={{ display: (photoPreview || formData.photoURL) ? 'none' : 'flex' }}>
+                                    <div className="photo-placeholder" style={{ display: (photoPreview || (isEditing ? formData?.photoURL : client?.photoURL)) ? 'none' : 'flex' }}>
                                         <FaUserCircle className="photo-placeholder-icon" />
                                     </div>
                                     {isEditing && (
@@ -315,18 +294,42 @@ function ClientDetailsPage() {
                             )}
                         </div>
                     </>
-                )}
-                {activeTab === 'observacoes' && <ObservationsTab client={clientData} />}
-                {activeTab === 'documentos' && <DocumentsTab client={clientData} onDataChange={fetchClient} />}
-                {activeTab === 'processos' && <div><h4>Funcionalidade de Processos em construção.</h4></div>}
-                {activeTab === 'historico' && <HistoricoCompletoTab client={clientData} />}
+                );
+            case 'documentos':
+                return <DocumentsTab client={client} onDataChange={fetchClient} />;
+            case 'observacoes':
+                return <ObservationsTab client={client} />;
+            case 'processos':
+                return <div><h4>Funcionalidade de Processos em construção.</h4></div>;
+            case 'historico':
+                return <HistoricoCompletoTab client={client} />;
+            default:
+                return null;
+        }
+    };
+
+    if (loading) return <div className="loading-container">Carregando ficha...</div>;
+    if (!client) return <div className="loading-container">Cliente não encontrado.</div>;
+
+    return (
+        <div className="client-details-wrapper">
+            <nav className="tabs-nav">
+                <button className={`tab-button ${activeTab === 'dadosPessoais' ? 'active' : ''}`} onClick={() => setActiveTab('dadosPessoais')}>Dados Pessoais</button>
+                <button className={`tab-button ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button>
+                <button className={`tab-button ${activeTab === 'observacoes' ? 'active' : ''}`} onClick={() => setActiveTab('observacoes')}>Observações</button>
+                <button className={`tab-button ${activeTab === 'processos' ? 'active' : ''}`} onClick={() => setActiveTab('processos')}>Processos</button>
+                <button className={`tab-button ${activeTab === 'historico' ? 'active' : ''}`} onClick={() => setActiveTab('historico')}>Histórico Completo</button>
+            </nav>
+
+            <div className="tab-content">
+                {renderContent()}
             </div>
 
             {isContractModalOpen && (
                 <GenerateContractModal
-                    client={clientData}
+                    client={client} // Sempre passamos o estado 'client', que garantidamente tem o ID
                     onClose={() => setIsContractModalOpen(false)}
-                    onContractsGenerated={handleContractsGenerated}
+                    onContractsGenerated={fetchClient}
                 />
             )}
         </div>

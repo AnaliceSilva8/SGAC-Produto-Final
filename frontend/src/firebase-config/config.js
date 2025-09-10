@@ -1,22 +1,27 @@
 // frontend/src/firebase-config/config.js
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage"; // 1. IMPORTA O STORAGE
 
+// 1. Importações necessárias para os serviços do Firebase
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { getStorage } from "firebase/storage";
+
+// 2. A sua nova configuração do Firebase que você copiou
 const firebaseConfig = {
-  // ...suas credenciais aqui...
-  apiKey: "AIzaSyDaWe22c51Yo-V_XoLVJjaVRXDmvHopHsA",
-  authDomain: "sgac-552b8.firebaseapp.com",
-  projectId: "sgac-552b8",
-  storageBucket: "sgac-552b8.firebasestorage.app",
-  messagingSenderId: "839402485526",
-  appId: "1:839402485526:web:05a1ef61325284bafa4237",
-  measurementId: "G-1G4Y289PTP"
+  apiKey: "AIzaSyBUAFGxdPW6Or6R4HIeH1xLxpM5GHT4dKE",
+  authDomain: "sgac-projetofinal.firebaseapp.com",
+  projectId: "sgac-projetofinal",
+  // Corrigindo para o formato que o SDK espera
+  storageBucket: "sgac-projetofinal.appspot.com", 
+  messagingSenderId: "892463668104",
+  appId: "1:892463668104:web:e7aa2111599cca2bae383d",
+  measurementId: "G-F254JR4C0X"
 };
 
+// 3. Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+// 4. Exporta as instâncias dos serviços para o resto do seu aplicativo usar
 export const db = getFirestore(app);
-export const storage = getStorage(app); // 2. EXPORTA A INSTÂNCIA DO STORAGE
+export const auth = getAuth(app);
+export const storage = getStorage(app);
