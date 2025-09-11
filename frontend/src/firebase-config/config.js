@@ -6,16 +6,16 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
-// 2. A sua nova configuração do Firebase que você copiou
+// 2. A sua configuração do Firebase com o storageBucket CORRIGIDO
 const firebaseConfig = {
-  apiKey: "AIzaSyBUAFGxdPW6Or6R4HIeH1xLxpM5GHT4dKE",
-  authDomain: "sgac-projetofinal.firebaseapp.com",
-  projectId: "sgac-projetofinal",
-  // Corrigindo para o formato que o SDK espera
-  storageBucket: "sgac-projetofinal.appspot.com", 
-  messagingSenderId: "892463668104",
-  appId: "1:892463668104:web:e7aa2111599cca2bae383d",
-  measurementId: "G-F254JR4C0X"
+  apiKey: "AIzaSyBUAFGxdPW6Or6R4HIeH1xLxpM5GHT4dKE",
+  authDomain: "sgac-projetofinal.firebaseapp.com",
+  projectId: "sgac-projetofinal",
+  // AQUI ESTÁ A CORREÇÃO:
+  storageBucket: "sgac-projetofinal.firebasestorage.app", 
+  messagingSenderId: "892463668104",
+  appId: "1:892463668104:web:e7aa2111599cca2bae383d",
+  measurementId: "G-F254JR4C0X"
 };
 
 // 3. Inicializa o Firebase
