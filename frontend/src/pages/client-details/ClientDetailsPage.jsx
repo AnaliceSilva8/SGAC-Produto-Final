@@ -1,5 +1,3 @@
-// frontend/src/pages/client-details/ClientDetailsPage.jsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, storage, auth } from '../../firebase-config/config';
@@ -34,11 +32,13 @@ const formatDate = (dateString) => {
 };
 
 function ClientDetailsPage() {
-    const { clientId } = useParams();
+    // --- CORREÇÃO PRINCIPAL AQUI ---
+    // A rota usa :id, então devemos desestruturar 'id'
+    const { id } = useParams(); 
     const navigate = useNavigate();
-    // --- CORREÇÃO FINAL: Usamos um único estado para os dados do cliente e um estado separado para o formulário de edição ---
+    
     const [client, setClient] = useState(null); 
-    const [formData, setFormData] = useState(null); // Estado apenas para o formulário de edição
+    const [formData, setFormData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [errors, setErrors] = useState({});
@@ -50,25 +50,26 @@ function ClientDetailsPage() {
     const [isContractModalOpen, setIsContractModalOpen] = useState(false);
 
     const fetchClient = useCallback(async () => {
-        if (!clientId) return;
+        // Usamos 'id' que vem da URL
+        if (!id) return;
         try {
             setLoading(true);
-            const docRef = doc(db, 'clientes', clientId);
+            const docRef = doc(db, 'clientes', id);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = { id: docSnap.id, ...docSnap.data() };
-                setClient(data); // Armazena os dados originais, incluindo o ID
-                setFormData(data); // Inicializa o formulário com os dados
+                setClient(data);
+                setFormData(data);
             } else {
                 Swal.fire("Erro", "Cliente não encontrado.", "error");
-                navigate("/dashboard");
+                navigate("/"); // Redireciona para a página inicial
             }
         } catch (error) {
             console.error("Erro ao buscar cliente:", error);
         } finally {
             setLoading(false);
         }
-    }, [clientId, navigate]);
+    }, [id, navigate]); // Dependência corrigida para 'id'
 
     useEffect(() => {
         fetchClient();
@@ -134,22 +135,22 @@ function ClientDetailsPage() {
         try {
             const dataToSave = { ...formData };
             if (photoFile) {
-                const storageRef = ref(storage, `clientes/${clientId}/profilePicture.jpg`);
+                const storageRef = ref(storage, `clientes/${id}/profilePicture.jpg`);
                 await uploadBytes(storageRef, photoFile);
                 dataToSave.photoURL = await getDownloadURL(storageRef);
             }
-            const docRef = doc(db, 'clientes', clientId);
-            delete dataToSave.id; // Remove o ID antes de salvar no Firestore
+            const docRef = doc(db, 'clientes', id);
+            delete dataToSave.id;
             await updateDoc(docRef, dataToSave);
             
             const responsavel = userInfo.nome || user.email;
-            await logHistoryEvent(clientId, 'Dados Pessoais Editados', responsavel);
+            await logHistoryEvent(id, 'Dados Pessoais Editados', responsavel);
 
             setIsEditing(false);
             setPhotoFile(null);
             setPhotoPreview(null);
             Swal.fire('Sucesso!', 'Dados salvos com sucesso!', 'success');
-            fetchClient(); // Re-busca os dados para garantir consistência
+            fetchClient();
         } catch (error) {
             Swal.fire('Erro!', 'Falha ao salvar os dados.', 'error');
         }
@@ -157,7 +158,7 @@ function ClientDetailsPage() {
 
     const handleCancelEdit = () => {
         setIsEditing(false);
-        setFormData(client); // Restaura o formulário com os dados originais
+        setFormData(client);
         setErrors({});
         setPhotoFile(null);
         setPhotoPreview(null);
@@ -169,11 +170,11 @@ function ClientDetailsPage() {
             return;
         }
         try {
-            const docRef = doc(db, 'clientes', clientId);
+            const docRef = doc(db, 'clientes', id);
             await deleteDoc(docRef);
-            await logHistoryEvent(clientId, 'Cliente Excluído', userInfo.nome || user.email);
+            await logHistoryEvent(id, 'Cliente Excluído', userInfo.nome || user.email);
             await Swal.fire('Excluído!', 'O cliente foi excluído com sucesso.', 'success');
-            navigate('/dashboard');
+            navigate('/');
         } catch (error) {
             Swal.fire('Erro!', 'Falha ao excluir o cliente.', 'error');
         }
@@ -195,33 +196,34 @@ function ClientDetailsPage() {
             }
         });
     };
-
-    const renderField = (label, id, options = {}) => {
+    
+    // Funções renderField e renderContent (sem alterações, mas incluídas para o arquivo ficar completo)
+    const renderField = (label, fieldId, options = {}) => {
         const { type = 'text', mask, selectOptions } = options;
-        const valueToDisplay = isEditing ? formData[id] : client[id];
-        const displayValue = id === 'DATANASCIMENTO' && !isEditing ? formatDate(valueToDisplay) : valueToDisplay;
+        const valueToDisplay = isEditing ? formData[fieldId] : client[fieldId];
+        const displayValue = fieldId === 'DATANASCIMENTO' && !isEditing ? formatDate(valueToDisplay) : valueToDisplay;
         return (
             <div className="data-field">
                 <label>{label}</label>
                 {isEditing ? (
                     <>
                         {selectOptions ? (
-                            <select id={id} value={formData[id] || ''} onChange={handleInputChange}>
+                            <select id={fieldId} value={formData[fieldId] || ''} onChange={handleInputChange}>
                                 {selectOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </select>
                         ) : mask ? (
                             <IMaskInput
-                                mask={mask} id={id} value={formData[id] || ''}
-                                onAccept={(val) => handleMaskedInputChange(val, id)}
+                                mask={mask} id={fieldId} value={formData[fieldId] || ''}
+                                onAccept={(val) => handleMaskedInputChange(val, fieldId)}
                                 className="input-style"
                             />
                         ) : (
                             <input
-                                id={id} type={type} value={formData[id] || ''}
-                                onChange={handleInputChange} disabled={id === 'IDADE'}
+                                id={fieldId} type={type} value={formData[fieldId] || ''}
+                                onChange={handleInputChange} disabled={fieldId === 'IDADE'}
                             />
                         )}
-                        {errors[id] && <p className="error-text">{errors[id]}</p>}
+                        {errors[fieldId] && <p className="error-text">{errors[fieldId]}</p>}
                     </>
                 ) : (
                     <p>{displayValue || 'N/A'}</p>
@@ -327,7 +329,7 @@ function ClientDetailsPage() {
 
             {isContractModalOpen && (
                 <GenerateContractModal
-                    client={client} // Sempre passamos o estado 'client', que garantidamente tem o ID
+                    client={client}
                     onClose={() => setIsContractModalOpen(false)}
                     onContractsGenerated={fetchClient}
                 />

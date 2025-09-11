@@ -20,3 +20,23 @@
   text-decoration: none; /* Remove o sublinhado */
   color: inherit; /* Faz o link herdar a cor do texto do item 'li' */
 }
+
+.sidebar-nav li {
+  position: relative; /* Necessário para posicionar o badge */
+}
+
+.notification-badge-menu {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background-color: #dc3545;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
