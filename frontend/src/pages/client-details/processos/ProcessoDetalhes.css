@@ -1,0 +1,166 @@
+/* Container principal com layout de fluxo simples */
+.processo-detalhes-container {
+    display: flex;
+    flex-direction: column;
+    gap: 25px; /* Espaçamento entre as seções principais */
+    padding: 20px;
+}
+
+.back-button {
+    background: none;
+    border: none;
+    color: #007bff;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 5px;
+    align-self: flex-start; /* Alinha o botão à esquerda */
+}
+
+.detalhes-header {
+    width: 100%;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 15px;
+}
+
+.header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 5px;
+}
+
+.header-controls p {
+    margin: 0;
+    color: #666;
+    font-size: 16px;
+}
+
+.detalhes-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 24px;
+}
+
+/* Grelha de informações principais */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); /* Mantém a grelha responsiva */
+    gap: 20px;
+    width: 100%;
+}
+
+.info-item {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 5px;
+    border-left: 4px solid #007bff;
+}
+
+.info-item strong, .info-item label {
+    display: block;
+    margin-bottom: 8px;
+    color: #555;
+    font-size: 14px;
+}
+
+.info-item p {
+    margin: 0;
+    font-size: 16px;
+    color: #333;
+}
+
+/* Seções de Documentos e Timeline */
+.documentos-section,
+.timeline-section {
+    width: 100%;
+    margin-top: 20px;
+    border-top: 2px solid #eee;
+    padding-top: 20px;
+}
+
+.documentos-section h4,
+.timeline-section h4 {
+    font-size: 20px;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+/* Área de texto da Timeline maior */
+.evento-form textarea {
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 15px;
+    font-family: inherit;
+    resize: vertical;
+    margin-bottom: 10px;
+    min-height: 120px; /* Altura mínima aumentada */
+}
+
+/* --- Restante do CSS (sem grandes alterações) --- */
+
+.info-grid-edit input,
+.info-grid-edit select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 15px;
+}
+
+.edit-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.edit-controls button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 10px;
+    border-radius: 5px;
+    transition: background-color 0.2s;
+}
+
+.edit-controls .save-btn { color: #28a745; }
+.edit-controls .cancel-btn { color: #dc3545; }
+.edit-controls .edit-btn { color: #007bff; }
+.edit-controls button:hover { background-color: #f0f0f0; }
+
+.upload-area {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.upload-area input[type="file"] { flex-grow: 1; }
+.upload-area button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+.upload-area button:disabled { background-color: #aaa; }
+
+.documentos-list { list-style: none; padding: 0; }
+.documento-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px; }
+.documento-item-nome { font-weight: 500; color: #333; word-break: break-all; }
+.documento-item-actions { display: flex; gap: 15px; }
+.documento-item-actions a, .documento-item-actions button { background: none; border: none; cursor: pointer; color: #555; font-size: 16px; transition: color 0.2s; }
+.documento-item-actions a:hover { color: #007bff; }
+.documento-item-actions button:hover { color: #dc3545; }
+
+.evento-form { display: flex; flex-direction: column; margin-bottom: 30px; }
+.evento-form button { align-self: flex-end; padding: 10px 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+.evento-form button:disabled { background-color: #aaa; }
+
+.timeline { position: relative; padding-left: 30px; border-left: 2px solid #007bff; }
+.timeline-item { position: relative; margin-bottom: 25px; }
+.timeline-marker { position: absolute; left: -40px; top: 5px; width: 18px; height: 18px; background-color: white; border: 3px solid #007bff; border-radius: 50%; }
+.timeline-content { background-color: #f0f7ff; padding: 15px; border-radius: 6px; }
+.timeline-descricao { margin: 0 0 10px 0; font-size: 16px; color: #333; white-space: pre-wrap; }
+.timeline-meta { font-size: 12px; color: #777; }

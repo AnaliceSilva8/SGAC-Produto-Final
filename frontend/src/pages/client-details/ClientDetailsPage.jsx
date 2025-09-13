@@ -13,6 +13,8 @@ import DocumentsTab from './DocumentsTab';
 import HistoricoCompletoTab from './HistoricoCompletoTab';
 import { logHistoryEvent } from '../../utils/historyLogger';
 import GenerateContractModal from '../../components/modals/GenerateContractModal';
+// --- 1. IMPORTAÇÃO ADICIONADA ---
+import ProcessosTab from './processos/ProcessosTab';
 
 // Funções de validação e formatação (sem alterações)
 function isValidCPF(cpf) {
@@ -32,8 +34,6 @@ const formatDate = (dateString) => {
 };
 
 function ClientDetailsPage() {
-    // --- CORREÇÃO PRINCIPAL AQUI ---
-    // A rota usa :id, então devemos desestruturar 'id'
     const { id } = useParams(); 
     const navigate = useNavigate();
     
@@ -50,7 +50,6 @@ function ClientDetailsPage() {
     const [isContractModalOpen, setIsContractModalOpen] = useState(false);
 
     const fetchClient = useCallback(async () => {
-        // Usamos 'id' que vem da URL
         if (!id) return;
         try {
             setLoading(true);
@@ -62,14 +61,14 @@ function ClientDetailsPage() {
                 setFormData(data);
             } else {
                 Swal.fire("Erro", "Cliente não encontrado.", "error");
-                navigate("/"); // Redireciona para a página inicial
+                navigate("/");
             }
         } catch (error) {
             console.error("Erro ao buscar cliente:", error);
         } finally {
             setLoading(false);
         }
-    }, [id, navigate]); // Dependência corrigida para 'id'
+    }, [id, navigate]);
 
     useEffect(() => {
         fetchClient();
@@ -197,7 +196,6 @@ function ClientDetailsPage() {
         });
     };
     
-    // Funções renderField e renderContent (sem alterações, mas incluídas para o arquivo ficar completo)
     const renderField = (label, fieldId, options = {}) => {
         const { type = 'text', mask, selectOptions } = options;
         const valueToDisplay = isEditing ? formData[fieldId] : client[fieldId];
@@ -301,8 +299,9 @@ function ClientDetailsPage() {
                 return <DocumentsTab client={client} onDataChange={fetchClient} />;
             case 'observacoes':
                 return <ObservationsTab client={client} />;
+            // --- 2. LÓGICA ATUALIZADA AQUI ---
             case 'processos':
-                return <div><h4>Funcionalidade de Processos em construção.</h4></div>;
+                return <ProcessosTab client={client} />;
             case 'historico':
                 return <HistoricoCompletoTab client={client} />;
             default:

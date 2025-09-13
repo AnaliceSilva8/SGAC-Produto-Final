@@ -1,0 +1,80 @@
+.processos-tab-container {
+    padding: 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.processos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 15px;
+}
+
+.processos-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.add-processo-btn {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background-color 0.3s;
+}
+
+.add-processo-btn:hover {
+    background-color: #0056b3;
+}
+
+.no-processos-message {
+    text-align: center;
+    color: #777;
+    margin-top: 50px;
+}
+
+.processos-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.processo-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.processo-list-item:hover {
+    background-color: #f9f9f9;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.processo-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.processo-numero {
+    font-weight: bold;
+    color: #333;
+    font-size: 16px;
+}
+
+.processo-area {
+    color: #666;
+    font-size: 14px;
+    margin-top: 4px;
+}
