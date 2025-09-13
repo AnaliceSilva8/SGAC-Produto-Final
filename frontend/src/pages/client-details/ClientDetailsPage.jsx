@@ -10,10 +10,9 @@ import { FaUserCircle } from 'react-icons/fa';
 import './ClientDetailsPage.css';
 import ObservationsTab from './ObservationsTab';
 import DocumentsTab from './DocumentsTab';
-import HistoricoCompletoTab from './HistoricoCompletoTab';
+// O import do HistoricoCompletoTab foi removido
 import { logHistoryEvent } from '../../utils/historyLogger';
 import GenerateContractModal from '../../components/modals/GenerateContractModal';
-// --- 1. IMPORTAÇÃO ADICIONADA ---
 import ProcessosTab from './processos/ProcessosTab';
 
 // Funções de validação e formatação (sem alterações)
@@ -299,11 +298,9 @@ function ClientDetailsPage() {
                 return <DocumentsTab client={client} onDataChange={fetchClient} />;
             case 'observacoes':
                 return <ObservationsTab client={client} />;
-            // --- 2. LÓGICA ATUALIZADA AQUI ---
             case 'processos':
                 return <ProcessosTab client={client} />;
-            case 'historico':
-                return <HistoricoCompletoTab client={client} />;
+            // O case para 'historico' foi removido daqui
             default:
                 return null;
         }
@@ -319,7 +316,7 @@ function ClientDetailsPage() {
                 <button className={`tab-button ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button>
                 <button className={`tab-button ${activeTab === 'observacoes' ? 'active' : ''}`} onClick={() => setActiveTab('observacoes')}>Observações</button>
                 <button className={`tab-button ${activeTab === 'processos' ? 'active' : ''}`} onClick={() => setActiveTab('processos')}>Processos</button>
-                <button className={`tab-button ${activeTab === 'historico' ? 'active' : ''}`} onClick={() => setActiveTab('historico')}>Histórico Completo</button>
+                {/* O botão da aba 'Histórico Completo' foi removido daqui */}
             </nav>
 
             <div className="tab-content">

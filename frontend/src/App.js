@@ -1,23 +1,30 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { auth } from './firebase-config/config'; //
+import { auth } from './firebase-config/config';
 
-// Importe o novo componente
+// Importe o componente de rota privada
 import PrivateRoute from './components/PrivateRoute';
 
-// Importe suas páginas
-import LoginPage from './pages/login/LoginPage'; //
-import SignUpPage from './pages/signup/SignUpPage'; //
-import DashboardPage from './pages/dashboard/DashboardPage'; //
-import ClientDetailsPage from './pages/client-details/ClientDetailsPage'; //
+// Importe suas páginas existentes
+import LoginPage from './pages/login/LoginPage';
+import SignUpPage from './pages/signup/SignUpPage';
+import DashboardPage from './pages/dashboard/DashboardPage';
+import ClientDetailsPage from './pages/client-details/ClientDetailsPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
+
+// Importe a nova página de Atendimentos
+import AtendimentosPage from './pages/atendimentos/AtendimentosPage';
 
 function App() {
   const [user, loading] = useAuthState(auth);
 
   if (loading) {
-    return <div>Carregando...</div>;
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <h2>Carregando Sistema...</h2>
+      </div>
+    );
   }
 
   return (
@@ -27,12 +34,14 @@ function App() {
         <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
         <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to="/" />} />
 
-        {/* Rotas Protegidas que precisam do Layout */}
+        {/* Rotas Protegidas que utilizam o Layout */}
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/cliente/:id" element={<ClientDetailsPage />} />
           <Route path="/notificacoes" element={<NotificationsPage />} />
-          {/* Adicione outras rotas protegidas aqui */}
+          
+          {/* --- ROTA PARA ATENDIMENTOS ADICIONADA --- */}
+          <Route path="/atendimentos" element={<AtendimentosPage />} />
         </Route>
       </Routes>
     </Router>

@@ -1,129 +1,141 @@
-import React from 'react';
-import { useCollection } from 'react-firebase-hooks/firestore';
-import { getFirestore, collection, query, where, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import React, { useEffect, useState } from 'react';
+import { db, auth } from '../../firebase-config/config';
+import { collection, query, where, getDocs, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import { Link } from 'react-router-dom';
-import { FaBirthdayCake, FaUserCheck, FaBell, FaTrash } from 'react-icons/fa'; // Importa o ícone da lixeira
-import Swal from 'sweetalert2'; // Importa o SweetAlert2
+import Swal from 'sweetalert2';
 import './NotificationsPage.css';
 
-const NotificationIcon = ({ tipo }) => {
-    switch (tipo) {
+// Função para escolher o ícone com base no tipo de notificação
+const getNotificationIcon = (type) => {
+    switch (type) {
         case 'aniversario_cliente':
-            return <FaBirthdayCake className="notification-icon birthday" />;
+            return <i className="fa-solid fa-cake-candles notification-icon birthday"></i>;
         case 'aniversario_cadastro':
-            return <FaUserCheck className="notification-icon register" />;
+            return <i className="fa-solid fa-calendar-star notification-icon register"></i>;
+        case 'atendimento_hoje':
+        case 'atendimento_amanha':
+            return <i className="fa-solid fa-calendar-check notification-icon default"></i>;
         default:
-            return <FaBell className="notification-icon default" />;
+            return <i className="fa-solid fa-bell notification-icon default"></i>;
     }
 };
 
-const NotificationsPage = () => {
-    const db = getFirestore();
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
+function NotificationsPage() {
+    const [user] = useAuthState(auth);
+    const [notifications, setNotifications] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
 
-    const notificacoesRef = collection(db, 'notificacoes');
-    const q = currentUser
-        ? query(
-            notificacoesRef,
-            where('usuarioId', '==', currentUser.uid),
-            orderBy('dataCriacao', 'desc')
-        )
-        : null;
+    const fetchAndMarkNotifications = async () => {
+        if (!user) {
+            setIsLoading(false);
+            return;
+        }
 
-    const [notificacoesSnapshot, loading, error] = useCollection(q);
+        const selectedLocation = localStorage.getItem('selectedLocation');
+        if (!selectedLocation) {
+            setError("Nenhuma unidade de atendimento foi selecionada.");
+            setIsLoading(false);
+            return;
+        }
 
-    const handleNotificationClick = async (id) => {
-        const notificationRef = doc(db, 'notificacoes', id);
-        await updateDoc(notificationRef, { lida: true });
+        setIsLoading(true);
+        setError('');
+        try {
+            const q = query(
+                collection(db, 'notificacoes'),
+                where('usuarioId', '==', user.uid),
+                where('location', '==', selectedLocation),
+                orderBy('dataCriacao', 'desc')
+            );
+
+            const querySnapshot = await getDocs(q);
+            const notifs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setNotifications(notifs);
+
+            const unreadNotifs = querySnapshot.docs.filter(d => !d.data().lida);
+            if (unreadNotifs.length > 0) {
+                const batch = [];
+                unreadNotifs.forEach(document => {
+                    const notifRef = doc(db, 'notificacoes', document.id);
+                    batch.push(updateDoc(notifRef, { lida: true }));
+                });
+                await Promise.all(batch);
+            }
+        } catch (err) {
+            console.error("Erro ao buscar notificações:", err);
+            setError("Ocorreu um erro ao carregar as notificações.");
+        } finally {
+            setIsLoading(false);
+        }
     };
     
-    // --- NOVA FUNÇÃO PARA APAGAR A NOTIFICAÇÃO ---
-    const handleDelete = (e, id) => {
-        e.preventDefault(); // Impede a navegação ao clicar no botão de apagar
-        e.stopPropagation(); // Impede que outros eventos de clique sejam disparados
+    useEffect(() => {
+        fetchAndMarkNotifications();
+    }, [user]);
 
-        Swal.fire({
-            title: 'Você tem certeza?',
-            text: "Esta ação não pode ser desfeita!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Sim, apagar!',
-            cancelButtonText: 'Cancelar'
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                try {
-                    const notificationRef = doc(db, 'notificacoes', id);
-                    await deleteDoc(notificationRef);
-                    Swal.fire(
-                        'Apagada!',
-                        'A notificação foi removida.',
-                        'success'
-                    );
-                } catch (err) {
-                    Swal.fire(
-                        'Erro!',
-                        'Não foi possível apagar a notificação.',
-                        'error'
-                    );
-                    console.error("Erro ao apagar notificação:", err);
-                }
-            }
-        });
+    const handleDelete = async (e, id) => {
+        e.preventDefault(); // Impede que o link de navegação seja ativado
+        e.stopPropagation(); // Impede a propagação do evento de clique
+
+        try {
+            await deleteDoc(doc(db, "notificacoes", id));
+            setNotifications(prev => prev.filter(notif => notif.id !== id));
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Notificação excluída',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        } catch (err) {
+            console.error("Erro ao deletar notificação:", err);
+            Swal.fire('Erro!', 'Não foi possível excluir a notificação.', 'error');
+        }
     };
 
-    if (loading) {
-        return <p>Carregando notificações...</p>;
-    }
 
-    if (error) {
-        return <p>Erro ao carregar notificações.</p>;
+    if (isLoading) {
+        return <div className="loading-container-notif">Carregando notificações...</div>;
     }
 
     return (
         <div className="notifications-page-container">
             <h1>Notificações</h1>
-            <div className="notifications-list">
-                {notificacoesSnapshot && notificacoesSnapshot.docs.length > 0 ? (
-                    notificacoesSnapshot.docs.map(docSnapshot => {
-                        const notificacao = docSnapshot.data();
-                        const id = docSnapshot.id;
-                        return (
-                            <Link to={notificacao.link || '#'} key={id} className="notification-item-link" onClick={() => handleNotificationClick(id)}>
-                                <div className={`notification-item ${!notificacao.lida ? 'nao-lida' : ''}`}>
-                                    <NotificationIcon tipo={notificacao.tipo} />
-                                    <div className="notification-content">
-                                        <p className="notification-title">{notificacao.titulo}</p>
-                                        <p className="notification-message">{notificacao.mensagem}</p>
-                                        <span className="notification-time">
-                                            {notificacao.dataCriacao?.toDate().toLocaleString()}
-                                        </span>
-                                    </div>
-                                    {!notificacao.lida && <div className="nova-marcador"></div>}
-                                    {/* --- BOTÃO DE APAGAR ADICIONADO --- */}
-                                    <button 
-                                        className="delete-notification-btn" 
-                                        onClick={(e) => handleDelete(e, id)}
-                                        title="Apagar notificação"
-                                    >
-                                        <FaTrash />
-                                    </button>
+            {error && <p className="error-message">{error}</p>}
+
+            {!error && notifications.length > 0 ? (
+                <div className="notifications-list">
+                    {notifications.map(notif => (
+                        <Link key={notif.id} to={notif.link || '#'} className="notification-item-link">
+                            <div className={`notification-item ${!notif.lida ? 'nao-lida' : ''}`}>
+                                {getNotificationIcon(notif.tipo)}
+                                <div className="notification-content">
+                                    <h3 className="notification-title">{notif.titulo}</h3>
+                                    <p className="notification-message">{notif.mensagem}</p>
+                                    <span className="notification-time">
+                                        {notif.dataCriacao?.toDate().toLocaleDateString('pt-BR')}
+                                    </span>
                                 </div>
-                            </Link>
-                        );
-                    })
-                ) : (
+                                <button className="delete-notification-btn" onClick={(e) => handleDelete(e, notif.id)}>
+                                    <i className="fa-solid fa-times"></i>
+                                </button>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            ) : (
+                !isLoading && !error && (
                     <div className="no-notifications">
-                        <FaBell />
-                        <p>Nenhuma notificação encontrada.</p>
+                        <i className="fa-regular fa-bell-slash"></i>
+                        <p>Nenhuma notificação para a unidade de {localStorage.getItem('selectedLocation')}.</p>
                     </div>
-                )}
-            </div>
+                )
+            )}
         </div>
     );
-};
+}
 
 export default NotificationsPage;

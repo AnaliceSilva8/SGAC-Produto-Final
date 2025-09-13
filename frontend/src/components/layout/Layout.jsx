@@ -10,24 +10,27 @@ import { auth as firebaseAuth } from '../../firebase-config/config';
 
 function Layout({ children }) {
   const navigate = useNavigate();
-  const location = useLocation(); // Hook para saber a página atual
+  const location = useLocation();
   const db = getFirestore();
   const auth = getAuth();
   const currentUser = auth.currentUser;
 
-  // --- Lógica para buscar notificações não lidas (adicionada) ---
-  const notificacoesRef = collection(db, 'notificacoes');
-  const q = currentUser
+  // --- LÓGICA CORRIGIDA PARA BUSCAR NOTIFICAÇÕES ---
+  // Agora, a busca de notificações para o contador também usa a localização.
+  const selectedLocation = localStorage.getItem('selectedLocation');
+
+  const notificacoesQuery = currentUser && selectedLocation
     ? query(
-        notificacoesRef,
+        collection(db, 'notificacoes'),
         where('usuarioId', '==', currentUser.uid),
-        where('lida', '==', false)
+        where('lida', '==', false),
+        where('location', '==', selectedLocation) // <-- CORREÇÃO APLICADA AQUI
       )
     : null;
 
-  const [notificacoesNaoLidasSnapshot] = useCollection(q);
+  const [notificacoesNaoLidasSnapshot] = useCollection(notificacoesQuery);
   const numNaoLidas = notificacoesNaoLidasSnapshot?.docs.length || 0;
-  // --- Fim da lógica ---
+  // --- Fim da lógica corrigida ---
 
   const handleLogout = () => {
     signOut(firebaseAuth).then(() => {
@@ -64,12 +67,7 @@ function Layout({ children }) {
               </li>
             </Link>
             
-            <Link to="/usuario" className="sidebar-link">
-              <li className={location.pathname === '/usuario' ? 'active' : ''}>
-                <i className="fa-solid fa-user"></i>
-                <span>Usuário</span>
-              </li>
-            </Link>
+            {/* O link para /usuario não existe, então foi removido para evitar erros futuros */}
           </ul>
         </nav>
         <div className="sidebar-footer">
