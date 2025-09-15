@@ -1,19 +1,15 @@
+// frontend/src/App.js
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from './firebase-config/config';
-
-// Importe o componente de rota privada
 import PrivateRoute from './components/PrivateRoute';
-
-// Importe suas páginas existentes
 import LoginPage from './pages/login/LoginPage';
 import SignUpPage from './pages/signup/SignUpPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import ClientDetailsPage from './pages/client-details/ClientDetailsPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
-
-// Importe a nova página de Atendimentos
 import AtendimentosPage from './pages/atendimentos/AtendimentosPage';
 
 function App() {
@@ -30,17 +26,15 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Rotas Públicas */}
+        {/* Rotas Públicas: Login E Cadastro */}
         <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
         <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to="/" />} />
 
-        {/* Rotas Protegidas que utilizam o Layout */}
+        {/* Rotas Protegidas */}
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/cliente/:id" element={<ClientDetailsPage />} />
           <Route path="/notificacoes" element={<NotificationsPage />} />
-          
-          {/* --- ROTA PARA ATENDIMENTOS ADICIONADA --- */}
           <Route path="/atendimentos" element={<AtendimentosPage />} />
         </Route>
       </Routes>

@@ -1,120 +1,159 @@
 /* frontend/src/pages/signup/SignUpPage.css */
-.signup-page-container {
-  display: flex;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(236, 236, 236, 1);
-  font-family: 'Istok Web', sans-serif;
+
+/* Define o fundo azul para toda a página (body) */
+body {
+    background-color: #1a4b5f; /* Cor azul do tema */
+    margin: 0; /* Garante que não há margem padrão */
+    padding: 0; /* Garante que não há padding padrão */
+    overflow-x: hidden; /* Evita scroll horizontal indesejado */
 }
-.side-panel {
-  flex: 1;
-  background-color: rgb(26, 75, 95);
+
+/* Container principal que agora centraliza o conteúdo verticalmente */
+.main-layout-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Centraliza horizontalmente o conteúdo (logo e card) */
+    min-height: 100vh;
+    background-color: rgba(236, 236, 236, 1); /* Fundo cinza claro que você quer que se estenda até a logo */
+    /* Removemos o background azul daqui, ele agora está no body */
 }
-.signup-main-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex-basis: 900px;
-  padding: 2rem;
-  overflow-y: auto;
-}
+
+/* Estilos para o cabeçalho com a logo */
 .signup-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-.signup-header img {
-  width: 130px;
-  height: auto;
-  background-color: transparent;
-}
-.signup-header h1 {
-  font-family: 'EB Garamond', serif;
-  font-weight: 700;
-  font-size: 2.5rem;
-  color: rgb(26, 75, 95);
-  margin-top: 1rem;
-}
-.signup-form-container {
-  background-color: white;
-  padding: 2.5rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 800px;
-}
-.signup-form-container h2 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-  text-align: center;
-}
-.signup-form-container p {
-  margin-bottom: 1.5rem;
-  color: #666;
-  text-align: center;
-}
-.form-grid-signup {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.2rem 1.5rem;
-  text-align: left;
-}
-.input-group {
-  position: relative;
-  padding-bottom: 18px; /* Espaço para a mensagem de erro */
-}
-.form-grid-signup label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: bold;
-}
-.form-grid-signup input,
-.form-grid-signup select {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 1rem;
-  box-sizing: border-box;
+    width: 100%; /* Ocupa a largura total do main-layout-container */
+    max-width: 800px; /* Ajusta para a mesma largura do .signup-page-content */
+    padding: 20px 0;
+    text-align: center;
+    background-color: transparent; /* Garante que não haja fundo branco aqui */
+    margin-bottom: 2rem; /* Espaço entre a logo e o card do formulário */
 }
 
-/* --- ESTILO CORRIGIDO PARA ERROS --- */
-.error-message-field {
-  color: #c00;
-  font-size: 0.8rem;
-  position: absolute;
-  bottom: 0;
-  left: 0;
+.signup-logo {
+    max-width: 180px;
+    height: auto;
 }
 
-.error-message-form {
-  color: #c00;
-  text-align: center;
-  margin: 1.5rem 0 0 0;
-  font-size: 0.9rem;
+/* Estilos para o container do formulário */
+.signup-page-container {
+    /* Não precisamos mais de flex-grow: 1 aqui, pois o main-layout-container já gerencia o espaço */
+    display: flex;
+    justify-content: center;
+    /* align-items: flex-start; */ /* Alinha ao topo se o conteúdo for menor que a altura */
+    padding: 0 2rem 2rem 2rem; /* Remove padding top, já que a logo está no main-layout-container */
+    box-sizing: border-box;
+    width: 100%; /* Ocupa a largura total disponível no main-layout-container */
+    max-width: 800px; /* Alinha com a largura do signup-header */
 }
 
-.signup-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 2rem;
-  border-top: 1px solid #eee;
-  padding-top: 1.5rem;
+.signup-page-content {
+    background: white;
+    padding: 3rem 4rem;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    width: 100%;
+    /* max-width: 800px;  Já definido no container pai, mas pode manter para redundância */
+    animation: fadeIn 0.5s ease-out;
 }
-.signup-buttons button {
-  padding: 0.7rem 1.5rem;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 1rem;
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-30px); }
+    to { opacity: 1; transform: translateY(0); }
 }
+
+.signup-page-content .signup-title {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 2.5rem;
+    font-family: 'Istok Web', sans-serif;
+    color: #2c3e50;
+    font-size: 2.2rem;
+}
+
+.form-grid-signup-page {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.8rem 2.5rem;
+    text-align: left;
+}
+
+.signup-page-content .input-group {
+    position: relative;
+    padding-bottom: 28px;
+}
+
+.signup-page-content label {
+    display: block;
+    margin-bottom: 0.8rem;
+    font-weight: bold;
+    font-size: 1rem;
+    color: #34495e;
+}
+
+.signup-page-content input,
+.signup-page-content select {
+    width: 100%;
+    padding: 1rem;
+    border: 1px solid #c8d1da;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 1.05rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.signup-page-content input:focus,
+.signup-page-content select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.2);
+    outline: none;
+}
+
+.error-text {
+    color: #e74c3c;
+    font-size: 0.9rem;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+}
+
+.signup-page-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1.5rem;
+    margin-top: 3rem;
+}
+
+.signup-page-buttons button {
+    padding: 1rem 2.2rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1.05rem;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
 .btn-save {
-  background-color: rgb(26, 75, 95);
-  color: white;
+    background-color: #1a4b5f;
+    color: white;
 }
+
+.btn-save:hover:not(:disabled) {
+    background-color: #153a47;
+    transform: translateY(-2px);
+}
+
+.btn-save:disabled {
+    background-color: #b0c4de;
+    cursor: not-allowed;
+}
+
 .btn-cancel {
-  background-color: #f0f0f0;
-  color: #333;
+    background-color: #dcdfe4;
+    color: #444;
+}
+
+.btn-cancel:hover {
+    background-color: #c9ccd2;
+    transform: translateY(-2px);
 }

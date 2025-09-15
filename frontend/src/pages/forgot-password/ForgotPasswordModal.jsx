@@ -1,57 +1,77 @@
-// frontend/src/pages/forgot-password/ForgotPasswordModal.jsx
 import React, { useState } from 'react';
-import { auth } from '../../firebase-config/config';
 import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../../firebase-config/config';
+import Swal from 'sweetalert2'; // 1. Importar o SweetAlert2
 import './ForgotPasswordModal.css';
 
-function ForgotPasswordModal({ onClose }) {
-  const [email, setEmail] = useState('');
+const ForgotPasswordModal = ({ isOpen, onClose }) => {
+    const [email, setEmail] = useState('');
 
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    if (!email) {
-      alert("Por favor, digite seu e-mail.");
-      return;
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        try {
+            await sendPasswordResetEmail(auth, email);
+
+            // 2. Chamar o SweetAlert2 para o alerta de sucesso
+            Swal.fire({
+                title: 'Sucesso!',
+                text: 'E-mail de redefinição de senha enviado com sucesso!',
+                icon: 'success',
+                confirmButtonText: 'OK',
+                customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    content: 'swal2-content',
+                    confirmButton: 'swal2-confirm-button'
+                }
+            }).then((result) => {
+                // 3. Fechar o modal principal depois que o usuário clicar em "OK"
+                if (result.isConfirmed) {
+                    onClose();
+                }
+            });
+
+        } catch (error) {
+            console.error("Erro ao enviar e-mail de redefinição de senha:", error);
+            // Alerta de erro com SweetAlert2 para manter o padrão
+            Swal.fire({
+                title: 'Erro!',
+                text: 'Não foi possível enviar o e-mail. Verifique se o endereço está correto.',
+                icon: 'error',
+                confirmButtonText: 'OK',
+                 customClass: {
+                    popup: 'swal2-popup',
+                    title: 'swal2-title',
+                    content: 'swal2-content',
+                    confirmButton: 'swal2-confirm-button'
+                }
+            });
+        }
+    };
+
+    if (!isOpen) {
+        return null;
     }
-    
-    // Nós SEMPRE mostraremos uma mensagem de sucesso para o usuário.
-    try {
-      await sendPasswordResetEmail(auth, email);
-    } catch (error) {
-      // Mesmo que ocorra um erro (ex: e-mail mal formatado),
-      // nós o registramos no console para nós (desenvolvedores),
-      // mas não mudamos a mensagem para o usuário final.
-      console.error("Erro no sendPasswordResetEmail (não mostrar ao usuário):", error);
-    }
 
-    // A mensagem é a mesma, existindo o e-mail ou não.
-    alert("Solicitação enviada. Se seu e-mail estiver cadastrado em nosso sistema, você receberá um link para redefinir sua senha em breve.");
-    onClose(); // Fecha o modal
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <form onSubmit={handleResetPassword}>
-          <h2>Redefinir Senha</h2>
-          <p>Digite seu e-mail abaixo. Enviaremos um link para você criar uma nova senha.</p>
-          <div className="input-group">
-            <label htmlFor="reset-email">E-mail</label>
-            <input
-              id="reset-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu.email@exemplo.com"
-              required
-            />
-          </div>
-          <button type="submit" className="btn-login">Enviar Link</button>
-          <button type="button" className="btn-register" onClick={onClose}>Cancelar</button>
-        </form>
-      </div>
-    </div>
-  );
-}
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <button className="close-button" onClick={onClose}>X</button>
+                <h2>Redefinir Senha</h2>
+                <p>Digite seu e-mail para receber o link de redefinição de senha.</p>
+                <form onSubmit={handleResetPassword}>
+                    <input
+                        type="email"
+                        placeholder="Digite seu e-mail"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                    />
+                    <button type="submit">Enviar</button>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 export default ForgotPasswordModal;

@@ -1,160 +1,93 @@
-/* eslint-disable max-len */
+// functions/index.js
+
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const {onSchedule} = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
-const db = admin.firestore();
 
-// Função auxiliar para formatar datas para o fuso horário de São Paulo
-// Isso garante que a data seja sempre tratada como se estivesse no Brasil.
-const formatToSaoPauloDateString = (date) => {
-  return new Date(date.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"})).toISOString().split('T')[0];
-};
+// A ADMIN_REGISTRATION_KEY foi removida desta função para fins de debug temporário.
+// Em produção, você DEVE implementar uma verificação de segurança robusta aqui.
 
-const criarNotificacoesParaTodosUsuarios = async (notificacoesACriar) => {
-  if (notificacoesACriar.length === 0) {
-    return;
-  }
-  const usersSnapshot = await db.collection("usuarios").get();
-  if (usersSnapshot.empty) {
-    console.log("ERRO CRÍTICO: A coleção 'usuarios' está vazia.");
-    return;
-  }
-  const batch = db.batch();
-  usersSnapshot.forEach((userDoc) => {
-    const userId = userDoc.id;
-    notificacoesACriar.forEach((notificacao) => {
-      const notificacaoCompleta = {
-        ...notificacao,
-        usuarioId: userId,
-        dataCriacao: admin.firestore.FieldValue.serverTimestamp(),
-        lida: false,
-      };
-      const notificacaoRef = db.collection("notificacoes").doc();
-      batch.set(notificacaoRef, notificacaoCompleta);
-    });
-  });
-  await batch.commit();
-  console.log(`SUCESSO: ${notificacoesACriar.length} evento(s) de notificação foram criados para ${usersSnapshot.size} usuário(s).`);
-};
+exports.createNewUser = functions.https.onCall(async (data, context) => {
+    // --- NOVOS LOGS PARA DEPURAR O OBJETO 'data' RECEBIDO ---
+    console.log("CF: Objeto 'data' recebido na Cloud Function:", JSON.stringify(data, null, 2));
+    console.log("CF: Tipo de 'data' recebido:", typeof data);
+    console.log("CF: Conteúdo de 'data.userData':", data ? data.userData : 'data é undefined/null');
+    console.log("CF: Tipo de 'data.userData':", typeof (data ? data.userData : 'undefined'));
+    // --- FIM DOS LOGS DE DEPURAR O OBJETO 'data' RECEBIDO ---
 
-exports.verificarAniversariosDiarios = onSchedule(
-    {
-      schedule: "every day 09:00",
-      timeZone: "America/Sao_Paulo",
-    },
-    async (event) => {
-        // ... (esta função continua a mesma, sem alterações)
-        console.log("Iniciando verificação diária de aniversários...");
-        const hoje = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-        const diaHoje = hoje.getDate();
-        const mesHoje = hoje.getMonth() + 1;
-        const hojeString = `${diaHoje}/${mesHoje}`;
-  
-        const clientesSnapshot = await db.collection("clientes").get();
-        if (clientesSnapshot.empty) {
-          console.log("Nenhum cliente encontrado.");
-          return null;
+    // Adiciona uma verificação para garantir que data.userData existe antes de desestruturar
+    if (!data || !data.userData) {
+        console.error("CF: data.userData está ausente ou é inválido na requisição.");
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "Dados do usuário ausentes. Por favor, tente novamente.",
+        );
+    }
+
+    // A linha abaixo é onde estava ocorrendo o erro 'Cannot destructure property 'email' of undefined'.
+    // Ela agora está protegida pela verificação acima.
+    const { email, password, nome, cpf, dataNascimento, cargo } = data.userData;
+
+    // Adiciona validação de entrada antes de tentar criar o usuário
+    if (!email || !password || !nome || !cpf || !dataNascimento || !cargo) {
+        console.error("CF: Campos obrigatórios do usuário ausentes.");
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "Todos os campos obrigatórios devem ser preenchidos.",
+        );
+    }
+
+    if (password.length < 6) { // Firebase Auth exige no mínimo 6 caracteres
+        console.error("CF: Senha muito curta.");
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "A senha deve ter no mínimo 6 caracteres.",
+        );
+    }
+
+    try {
+        // 2. Cria o usuário no Firebase Authentication
+        const userRecord = await admin.auth().createUser({
+            email: email,
+            password: password,
+            displayName: nome,
+        });
+
+        // 3. Salva as informações adicionais no Firestore
+        await admin.firestore().collection("usuarios").doc(userRecord.uid).set({
+            nome: nome,
+            cpf: cpf,
+            dataNascimento: dataNascimento,
+            cargo: cargo,
+            email: email, // Armazena o e-mail no Firestore também, útil para buscas
+            createdAt: admin.firestore.FieldValue.serverTimestamp(), // Adiciona um timestamp de criação
+        });
+
+        // Log de sucesso
+        console.log(`Usuário ${nome} (${userRecord.uid}) criado com sucesso.`);
+
+        // 4. Retorna uma mensagem de sucesso
+        return { success: true, message: `Usuário ${nome} criado com sucesso.` };
+
+    } catch (error) {
+        console.error("CF: Erro ao criar usuário na Cloud Function:", error);
+
+        if (error.code === "auth/email-already-exists") {
+            throw new functions.https.HttpsError(
+                "already-exists",
+                "Este e-mail já está em uso por outro usuário.",
+            );
+        } else if (error.code === "auth/weak-password") {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "A senha é muito fraca. Ela deve ter pelo menos 6 caracteres.",
+            );
         }
-  
-        const notificacoesPendentes = [];
-        for (const doc of clientesSnapshot.docs) {
-          const cliente = doc.data();
-          const clienteId = doc.id;
-          const location = cliente.LOCATION; 
-          if (!location) continue;
-  
-          if (cliente.DATANASCIMENTO && typeof cliente.DATANASCIMENTO === "string") {
-            const partes = cliente.DATANASCIMENTO.split("-");
-            if (partes.length === 3) {
-              const anoNascimento = parseInt(partes[0], 10);
-              const mesNascimento = parseInt(partes[1], 10);
-              const diaNascimento = parseInt(partes[2], 10);
-              if (`${diaNascimento}/${mesNascimento}` === hojeString) {
-                notificacoesPendentes.push({
-                  titulo: "Aniversário de Cliente",
-                  mensagem: `Hoje é aniversário de ${cliente.NOMECLIENTE}, completando ${hoje.getFullYear() - anoNascimento} anos!`,
-                  link: `/cliente/${clienteId}`,
-                  tipo: "aniversario_cliente",
-                  location: location,
-                });
-              }
-            }
-          }
-        }
-        if (notificacoesPendentes.length > 0) {
-          await criarNotificacoesParaTodosUsuarios(notificacoesPendentes);
-        }
-        console.log("Verificação de aniversários concluída.");
-        return null;
-    });
-
-// --- FUNÇÃO DE NOTIFICAÇÃO DE ATENDIMENTOS CORRIGIDA E ROBUSTA ---
-exports.verificarAtendimentosProximos = onSchedule(
-    {
-      schedule: "every day 00:01",
-      timeZone: "America/Sao_Paulo",
-    },
-    async (event) => {
-      console.log("Iniciando verificação de atendimentos com lógica de fuso horário corrigida...");
-
-      const agora = new Date();
-      
-      // Converte as datas para strings no formato YYYY-MM-DD para evitar problemas de fuso horário
-      const hojeString = formatToSaoPauloDateString(agora);
-      
-      const amanha = new Date(agora);
-      amanha.setDate(agora.getDate() + 1);
-      const amanhaString = formatToSaoPauloDateString(amanha);
-
-      console.log(`Data de hoje (São Paulo): ${hojeString}, Data de amanhã (São Paulo): ${amanhaString}`);
-
-      const agendamentosSnapshot = await db.collection("agendamentos").where("status", "==", "Agendado").get();
-      if (agendamentosSnapshot.empty) {
-        console.log("Nenhum atendimento com status 'Agendado' encontrado.");
-        return null;
-      }
-
-      const notificacoesPendentes = [];
-      agendamentosSnapshot.forEach((doc) => {
-        const agendamento = doc.data();
-        const location = agendamento.location;
-        if (!location || !agendamento.data || !agendamento.data.toDate) return;
-
-        // Converte a data do agendamento para o mesmo formato string YYYY-MM-DD
-        const dataAgendamentoString = formatToSaoPauloDateString(agendamento.data.toDate());
-
-        if (dataAgendamentoString === hojeString) {
-          console.log(`Lembrete para HOJE encontrado: Cliente ${agendamento.clienteNome}`);
-          notificacoesPendentes.push({
-            titulo: "Lembrete de Atendimento",
-            mensagem: `Hoje há um atendimento com ${agendamento.clienteNome} às ${agendamento.horario}, com Dr(a). ${agendamento.advogadoNome}.`,
-            link: `/atendimentos`,
-            tipo: "atendimento_hoje",
-            location: location,
-          });
-        }
-
-        if (dataAgendamentoString === amanhaString) {
-            console.log(`Aviso para AMANHÃ encontrado: Cliente ${agendamento.clienteNome}`);
-            notificacoesPendentes.push({
-              titulo: "Aviso de Atendimento",
-              mensagem: `Amanhã há um atendimento com ${agendamento.clienteNome} às ${agendamento.horario}, com Dr(a). ${agendamento.advogadoNome}.`,
-              link: `/atendimentos`,
-              tipo: "atendimento_amanha",
-              location: location,
-            });
-        }
-      });
-
-      if (notificacoesPendentes.length > 0) {
-        await criarNotificacoesParaTodosUsuarios(notificacoesPendentes);
-      } else {
-        console.log("Nenhum atendimento encontrado para hoje ou amanhã.");
-      }
-
-      console.log("Verificação de atendimentos concluída.");
-      return null;
-    },
-);
+        // Para quaisquer outros erros do Firebase Auth ou Firestore
+        throw new functions.https.HttpsError(
+            "internal",
+            "Ocorreu um erro interno ao criar o usuário. " + error.message,
+        );
+    }
+});

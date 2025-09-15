@@ -1,3 +1,5 @@
+// frontend/src/pages/login/LoginPage.jsx
+
 import React, { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../../firebase-config/config';
@@ -27,10 +29,6 @@ function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // ================================================================
-      // BLOCO DE VERIFICAÇÃO DE E-MAIL REMOVIDO DAQUI
-      // ================================================================
-
       localStorage.setItem('selectedLocation', location);
 
       const userDocRef = doc(db, 'usuarios', user.uid);
@@ -53,7 +51,7 @@ function LoginPage() {
         Swal.fire({
             icon: 'error',
             title: 'Ops!',
-            text: 'Ocorreu um erro inesperado ao tentar fazer login. Tente novamente mais tarde.',
+            text: 'Ocorreu um erro inesperado. Verifique sua conexão ou tente novamente mais tarde.',
         });
       }
       setPassword('');
@@ -104,7 +102,9 @@ function LoginPage() {
       
       {isForgotModalOpen && <ForgotPasswordModal onClose={() => setIsForgotModalOpen(false)} />}
       {needsProfileSetup && <ProfileSetupModal user={firstLoginUser} onProfileComplete={() => navigate('/')} />}
-      {isKeyModalOpen && <RegistrationKeyModal onCancel={() => setIsKeyModalOpen(false)} onAccessGranted={() => navigate('/cadastro')} />}
+      
+      {/* ======================= LINHA CORRIGIDA ABAIXO ======================= */}
+      {isKeyModalOpen && <RegistrationKeyModal onCancel={() => setIsKeyModalOpen(false)} onAccessGranted={() => navigate('/signup')} />}
     </>
   );
 }
