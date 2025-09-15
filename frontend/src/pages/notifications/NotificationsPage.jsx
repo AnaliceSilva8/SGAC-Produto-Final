@@ -6,19 +6,33 @@ import { Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './NotificationsPage.css';
 
-// Função para escolher o ícone com base no tipo de notificação
+// Ícone por tipo de notificação
 const getNotificationIcon = (type) => {
     switch (type) {
         case 'aniversario_cliente':
             return <i className="fa-solid fa-cake-candles notification-icon birthday"></i>;
         case 'aniversario_cadastro':
-            return <i className="fa-solid fa-calendar-star notification-icon register"></i>;
+            return <i className="fa-solid fa-calendar-day notification-icon register"></i>;
         case 'atendimento_hoje':
         case 'atendimento_amanha':
+        case 'audiencia':
             return <i className="fa-solid fa-calendar-check notification-icon default"></i>;
         default:
             return <i className="fa-solid fa-bell notification-icon default"></i>;
     }
+};
+
+// Função para calcular idade
+const calcularIdade = (dataNascimento) => {
+    if (!dataNascimento) return '';
+    const hoje = new Date();
+    const nasc = new Date(dataNascimento);
+    let idade = hoje.getFullYear() - nasc.getFullYear();
+    const m = hoje.getMonth() - nasc.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) {
+        idade--;
+    }
+    return idade;
 };
 
 function NotificationsPage() {
@@ -51,9 +65,10 @@ function NotificationsPage() {
             );
 
             const querySnapshot = await getDocs(q);
-            const notifs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const notifs = querySnapshot.docs.map(docu => ({ id: docu.id, ...docu.data() }));
             setNotifications(notifs);
 
+            // Marca notificações como lidas
             const unreadNotifs = querySnapshot.docs.filter(d => !d.data().lida);
             if (unreadNotifs.length > 0) {
                 const batch = [];
@@ -70,14 +85,14 @@ function NotificationsPage() {
             setIsLoading(false);
         }
     };
-    
+
     useEffect(() => {
         fetchAndMarkNotifications();
     }, [user]);
 
     const handleDelete = async (e, id) => {
-        e.preventDefault(); // Impede que o link de navegação seja ativado
-        e.stopPropagation(); // Impede a propagação do evento de clique
+        e.preventDefault();
+        e.stopPropagation();
 
         try {
             await deleteDoc(doc(db, "notificacoes", id));
@@ -96,7 +111,6 @@ function NotificationsPage() {
         }
     };
 
-
     if (isLoading) {
         return <div className="loading-container-notif">Carregando notificações...</div>;
     }
@@ -114,7 +128,25 @@ function NotificationsPage() {
                                 {getNotificationIcon(notif.tipo)}
                                 <div className="notification-content">
                                     <h3 className="notification-title">{notif.titulo}</h3>
-                                    <p className="notification-message">{notif.mensagem}</p>
+
+                                    {/* Conteúdo customizado por tipo */}
+                                    {notif.tipo === 'aniversario_cliente' ? (
+                                        <p className="notification-message">
+                                            Hoje é aniversário de <b>{notif.nomeCliente}</b> 🎉 <br />
+                                            Está completando <b>{calcularIdade(notif.dataNascimento)}</b> anos.
+                                        </p>
+                                    ) : notif.tipo === 'atendimento_hoje' || notif.tipo === 'atendimento_amanha' ? (
+                                        <p className="notification-message">
+                                            Você tem um atendimento com <b>{notif.nomeCliente}</b>.
+                                        </p>
+                                    ) : notif.tipo === 'audiencia' ? (
+                                        <p className="notification-message">
+                                            Você tem uma audiência com <b>{notif.nomeCliente}</b>.
+                                        </p>
+                                    ) : (
+                                        <p className="notification-message">{notif.mensagem}</p>
+                                    )}
+
                                     <span className="notification-time">
                                         {notif.dataCriacao?.toDate().toLocaleDateString('pt-BR')}
                                     </span>

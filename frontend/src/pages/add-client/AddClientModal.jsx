@@ -1,13 +1,9 @@
-// frontend/src/pages/add-client/AddClientModal.jsx
-
 import React, { useState, useEffect } from 'react';
-// Corrigido: Removida a importação duplicada de 'db' e corrigido o caminho
 import { db, auth } from '../../firebase-config/config'; 
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { IMaskInput } from 'react-imask';
 import SuccessModal from '../../components/modals/success/SuccessModal';
-// Corrigido: Ajustado o caminho para a função de log
 import { logHistoryEvent } from '../../utils/historyLogger'; 
 import './AddClientModal.css';
 
@@ -126,7 +122,8 @@ function AddClientModal({ onClose, onClientAdded }) {
       const docRef = await addDoc(collection(db, 'clientes'), {
         ...formData,
         LOCATION: selectedLocation,
-        DATA_CADASTRO: serverTimestamp()
+        // --- LINHA CORRIGIDA ---
+        DATAADC: serverTimestamp() // Alterado de DATA_CADASTRO para DATAADC
       });
       
       // LOG DE HISTÓRICO

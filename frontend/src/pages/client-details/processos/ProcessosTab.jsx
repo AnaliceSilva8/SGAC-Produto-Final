@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase-config/config';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+// Importa 'onSnapshot' para atualizações em tempo real
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import './ProcessosTab.css';
 import AddProcessoModal from './AddProcessoModal';
 import DetalhesDoProcesso from './DetalhesDoProcesso'; 
@@ -9,9 +10,9 @@ const StatusBadge = ({ status }) => {
     const getStatusColor = () => {
         switch (status) {
             case 'Ativo': return '#28a745';
-            case 'Em análise': return '#17a2b8';
+            case 'Em Análise': return '#17a2b8';
             case 'Arquivado': return '#6c757d';
-            case 'Suspenso': return '#ffc107';
+            case 'Aguardando Documentos': return '#ffc107';
             case 'Finalizado com Êxito': return '#007bff';
             case 'Finalizado sem Êxito': return '#dc3545';
             default: return '#6c757d';
@@ -35,32 +36,41 @@ function ProcessosTab({ client }) {
     const [selectedProcesso, setSelectedProcesso] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const fetchProcessos = useCallback(async () => {
-        if (!client || !client.id) return;
+    // Efeito para buscar e ouvir processos em tempo real
+    useEffect(() => {
+        if (!client || !client.id) {
+            setProcessos([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
-        try {
-            const processosRef = collection(db, 'processos');
-            const q = query(
-                processosRef,
-                where('clientId', '==', client.id),
-                orderBy('dataInicio', 'desc')
-            );
-            const querySnapshot = await getDocs(q);
+
+        // --- CORREÇÃO PRINCIPAL AQUI ---
+        // 1. A referência agora aponta para a SUBCOLEÇÃO de processos dentro do cliente
+        const processosRef = collection(db, 'clientes', client.id, 'processos');
+        
+        // 2. A query é feita nesta subcoleção, ordenada pela data.
+        const q = query(processosRef, orderBy('DATA_ENTRADA', 'desc'));
+
+        // 3. onSnapshot escuta as mudanças em tempo real
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const processosList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setProcessos(processosList);
-        } catch (error) {
-            console.error("Erro ao buscar processos:", error);
-        } finally {
             setLoading(false);
-        }
-    }, [client]);
+        }, (error) => {
+            console.error("Erro ao ouvir os processos:", error); // Mensagem de erro mais clara
+            setLoading(false);
+        });
 
-    useEffect(() => {
-        fetchProcessos();
-    }, [fetchProcessos]);
+        // 4. Função de limpeza para parar de escutar
+        return () => unsubscribe();
+
+    }, [client]);
     
+    // Função para fechar o modal e atualizar a lista (agora automático)
     const handleProcessoAdded = () => {
-        fetchProcessos();
+        setIsModalOpen(false);
     };
 
     if (loading) {
@@ -73,7 +83,7 @@ function ProcessosTab({ client }) {
                 processo={selectedProcesso} 
                 client={client}
                 onBack={() => setSelectedProcesso(null)}
-                onProcessoUpdate={fetchProcessos}
+                onProcessoUpdate={() => {}} // A atualização é automática, não precisa de lógica aqui
             />
         );
     }
@@ -94,10 +104,10 @@ function ProcessosTab({ client }) {
                     {processos.map((processo) => (
                         <li key={processo.id} className="processo-list-item" onClick={() => setSelectedProcesso(processo)}>
                             <div className="processo-info">
-                                <span className="processo-numero">{processo.areaDireito}</span>
-                                <span className="processo-subinfo">{processo.numeroProcesso || 'Proc. Administrativo'}</span>
+                                <span className="processo-numero">{processo.ESPECIE}</span>
+                                <span className="processo-subinfo">{processo.NUMERO_PROCESSO || 'Proc. Administrativo'}</span>
                             </div>
-                            <StatusBadge status={processo.status} />
+                            <StatusBadge status={processo.STATUS} />
                         </li>
                     ))}
                 </ul>
@@ -105,6 +115,7 @@ function ProcessosTab({ client }) {
 
             {isModalOpen && (
                 <AddProcessoModal
+                    isOpen={isModalOpen}
                     client={client}
                     onClose={() => setIsModalOpen(false)}
                     onProcessoAdded={handleProcessoAdded}

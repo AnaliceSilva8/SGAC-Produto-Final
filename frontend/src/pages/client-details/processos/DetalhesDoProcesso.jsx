@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db, auth, storage } from '../../../firebase-config/config';
-import { doc, collection, addDoc, query, orderBy, getDocs, serverTimestamp, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+// Importa onSnapshot para escutar em tempo real
+import { doc, collection, addDoc, query, orderBy, serverTimestamp, getDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import Swal from 'sweetalert2';
@@ -35,36 +36,41 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
     const [fileToUpload, setFileToUpload] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
 
-    const fetchData = useCallback(async () => {
-        if (!processo?.id) {
+    // Efeito para buscar todos os dados em tempo real
+    useEffect(() => {
+        if (!client?.id || !processo?.id) {
             setLoading(false);
             return;
         }
         setLoading(true);
-        try {
-            const processoRef = doc(db, 'processos', processo.id);
-            const processoSnap = await getDoc(processoRef);
-            if (processoSnap.exists()) {
-                setCurrentProcesso({ id: processoSnap.id, ...processoSnap.data() });
+
+        // --- CORREÇÃO 1: OUVIR O DOCUMENTO PRINCIPAL DO PROCESSO ---
+        const processoRef = doc(db, 'clientes', client.id, 'processos', processo.id);
+        const unsubscribeProcesso = onSnapshot(processoRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setCurrentProcesso({ id: docSnap.id, ...docSnap.data() });
             }
+        }, (error) => console.error("Erro ao ouvir processo:", error));
 
-            const historicoRef = collection(db, 'processos', processo.id, 'historico');
-            const qHist = query(historicoRef, orderBy('createdAt', 'desc'));
-            const histSnapshot = await getDocs(qHist);
-            setHistorico(histSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        // --- CORREÇÃO 2: OUVIR A SUBCOLEÇÃO DE HISTÓRICO ---
+        const historicoRef = collection(db, 'clientes', client.id, 'processos', processo.id, 'historico');
+        const qHist = query(historicoRef, orderBy('createdAt', 'desc'));
+        const unsubscribeHistorico = onSnapshot(qHist, (snapshot) => {
+            setHistorico(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        }, (error) => console.error("Erro ao ouvir histórico:", error));
 
-            const documentosRef = collection(db, 'processos', processo.id, 'documentos');
-            const qDocs = query(documentosRef, orderBy('createdAt', 'desc'));
-            const docsSnapshot = await getDocs(qDocs);
-            setDocumentos(docsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-        } catch (error) {
-            console.error("Erro ao buscar dados do processo:", error);
-        } finally {
+        // --- CORREÇÃO 3: OUVIR A SUBCOLEÇÃO DE DOCUMENTOS ---
+        const documentosRef = collection(db, 'clientes', client.id, 'processos', processo.id, 'documentos');
+        const qDocs = query(documentosRef, orderBy('createdAt', 'desc'));
+        const unsubscribeDocumentos = onSnapshot(qDocs, (snapshot) => {
+            setDocumentos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+            setLoading(false); // Considera carregado após buscar os documentos
+        }, (error) => {
+            console.error("Erro ao ouvir documentos:", error);
             setLoading(false);
-        }
-    }, [processo?.id]);
-
-    useEffect(() => {
+        });
+        
+        // Busca dados do usuário logado
         const fetchUserInfo = async () => {
             if (user) {
                 const userDocRef = doc(db, 'usuarios', user.uid);
@@ -73,8 +79,14 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
             }
         };
         fetchUserInfo();
-        fetchData();
-    }, [user, fetchData]);
+
+        // Função de limpeza para parar de ouvir os snapshots
+        return () => {
+            unsubscribeProcesso();
+            unsubscribeHistorico();
+            unsubscribeDocumentos();
+        };
+    }, [client?.id, processo?.id, user]);
 
 
     if (!currentProcesso || !client) {
@@ -90,15 +102,14 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
 
     const formatDateForDisplay = (timestamp) => {
         if (!timestamp || !timestamp.toDate) return 'N/A';
-        const date = timestamp.toDate();
-        return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+        return timestamp.toDate().toLocaleDateString('pt-BR', { timeZone: 'UTC' });
     };
     
     const handleEditToggle = () => {
         if (!isEditing) {
             setFormData({
-                status: currentProcesso.status,
-                faseAtual: currentProcesso.faseAtual || '',
+                status: currentProcesso.STATUS, // Ajustado para STATUS
+                faseAtual: currentProcesso.FASE_ATUAL || '', // Ajustado para FASE_ATUAL
                 dataAudiencia: formatDateForInput(currentProcesso.dataAudiencia),
             });
         }
@@ -112,16 +123,17 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
 
     const handleSaveChanges = async () => {
         setIsSaving(true);
-        const processoRef = doc(db, 'processos', currentProcesso.id);
-        const historicoRef = collection(db, 'processos', currentProcesso.id, 'historico');
+        // --- CORREÇÃO 4: REFERÊNCIAS PARA UPDATE E ADIÇÃO DE HISTÓRICO ---
+        const processoRef = doc(db, 'clientes', client.id, 'processos', currentProcesso.id);
+        const historicoRef = collection(db, 'clientes', client.id, 'processos', currentProcesso.id, 'historico');
         const responsavel = userInfo?.nome || user.email;
         const historyLogs = [];
 
-        if (formData.status !== currentProcesso.status) {
-            historyLogs.push(`Status alterado de "${currentProcesso.status}" para "${formData.status}".`);
+        if (formData.status !== currentProcesso.STATUS) {
+            historyLogs.push(`Status alterado de "${currentProcesso.STATUS}" para "${formData.status}".`);
         }
-        if (formData.faseAtual !== (currentProcesso.faseAtual || '')) {
-            historyLogs.push(`Fase atual alterada de "${currentProcesso.faseAtual || 'Não definida'}" para "${formData.faseAtual}".`);
+        if (formData.faseAtual !== (currentProcesso.FASE_ATUAL || '')) {
+            historyLogs.push(`Fase atual alterada de "${currentProcesso.FASE_ATUAL || 'Não definida'}" para "${formData.faseAtual}".`);
         }
         
         const oldDate = formatDateForInput(currentProcesso.dataAudiencia);
@@ -133,8 +145,8 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
         try {
             if (historyLogs.length > 0) {
                 await updateDoc(processoRef, {
-                    status: formData.status,
-                    faseAtual: formData.faseAtual,
+                    STATUS: formData.status,
+                    FASE_ATUAL: formData.faseAtual,
                     dataAudiencia: formData.dataAudiencia ? new Date(formData.dataAudiencia + 'T12:00:00.000Z') : null,
                 });
     
@@ -142,10 +154,8 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
                     await addDoc(historicoRef, { descricao: log, responsavel, createdAt: serverTimestamp() });
                 }
             }
-
             Swal.fire('Sucesso!', 'Alterações salvas com sucesso.', 'success');
             setIsEditing(false);
-            fetchData();
         } catch (error) {
             Swal.fire('Erro!', 'Não foi possível salvar as alterações.', 'error');
         } finally {
@@ -155,17 +165,17 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
 
     const handleAddEvento = async (e) => {
         e.preventDefault();
-        if (!novoEvento.trim()) return;
+        if (!novoEvento.trim() || !userInfo) return;
         setIsSaving(true);
         try {
-            const historicoRef = collection(db, 'processos', currentProcesso.id, 'historico');
+            // --- CORREÇÃO 5: REFERÊNCIA PARA ADICIONAR EVENTO ---
+            const historicoRef = collection(db, 'clientes', client.id, 'processos', currentProcesso.id, 'historico');
             await addDoc(historicoRef, {
                 descricao: novoEvento,
                 responsavel: userInfo?.nome || user.email,
                 createdAt: serverTimestamp(),
             });
             setNovoEvento('');
-            fetchData();
         } catch (error) {
             console.error("Erro ao adicionar evento: ", error);
         } finally {
@@ -176,14 +186,17 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
     const handleFileUpload = async () => {
         if (!fileToUpload) return;
         setIsUploading(true);
-        const filePath = `processos/${currentProcesso.id}/documentos/${Date.now()}_${fileToUpload.name}`;
+        // Path no storage mais organizado
+        const filePath = `clientes/${client.id}/processos/${currentProcesso.id}/${Date.now()}_${fileToUpload.name}`;
         const storageRef = ref(storage, filePath);
         
         try {
             await uploadBytes(storageRef, fileToUpload);
             const downloadURL = await getDownloadURL(storageRef);
             
-            await addDoc(collection(db, 'processos', currentProcesso.id, 'documentos'), {
+            // --- CORREÇÃO 6: REFERÊNCIA PARA ADICIONAR DOCUMENTO ---
+            const documentosRef = collection(db, 'clientes', client.id, 'processos', currentProcesso.id, 'documentos');
+            await addDoc(documentosRef, {
                 nome: fileToUpload.name,
                 url: downloadURL,
                 path: filePath,
@@ -193,7 +206,6 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
             Swal.fire('Sucesso!', 'Documento anexado com sucesso.', 'success');
             setFileToUpload(null);
             document.getElementById('file-input').value = null;
-            fetchData();
         } catch (error) {
             Swal.fire('Erro!', 'Falha ao anexar o documento.', 'error');
         } finally {
@@ -208,13 +220,13 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
             confirmButtonText: 'Sim, excluir!', cancelButtonText: 'Cancelar'
         }).then(async (result) => {
             if (result.isConfirmed) {
-                const docRef = doc(db, 'processos', currentProcesso.id, 'documentos', docData.id);
+                // --- CORREÇÃO 7: REFERÊNCIAS PARA EXCLUIR DOCUMENTO ---
+                const docRef = doc(db, 'clientes', client.id, 'processos', currentProcesso.id, 'documentos', docData.id);
                 const storageRef = ref(storage, docData.path);
                 try {
                     await deleteDoc(docRef);
                     await deleteObject(storageRef);
                     Swal.fire('Excluído!', 'O documento foi removido.', 'success');
-                    fetchData();
                 } catch (error) {
                     Swal.fire('Erro!', 'Não foi possível remover o documento.', 'error');
                 }
@@ -229,7 +241,7 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
             </button>
 
             <div className="detalhes-header">
-                <h3>{currentProcesso.areaDireito}</h3>
+                <h3>{currentProcesso.ESPECIE}</h3>
                 <div className="header-controls">
                     <p>Cliente: {client.NOMECLIENTE}</p>
                     <div className="edit-controls">
@@ -248,15 +260,15 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
             <div className={`info-grid ${isEditing ? 'info-grid-edit' : ''}`}>
                 {isEditing ? (
                     <>
-                        <div className="info-item"><strong>Nº Processo (CNJ)</strong><p>{currentProcesso.numeroProcesso || 'Não informado'}</p></div>
-                        <div className="info-item"><strong>Data de Início (DER)</strong><p>{formatDateForDisplay(currentProcesso.dataInicio)}</p></div>
+                        <div className="info-item"><strong>Nº Processo (CNJ)</strong><p>{currentProcesso.NUMERO_PROCESSO || 'Não informado'}</p></div>
+                        <div className="info-item"><strong>Data de Início (DER)</strong><p>{formatDateForDisplay(currentProcesso.DATA_ENTRADA)}</p></div>
                         <div className="info-item">
                             <label><strong>Status</strong></label>
                             <select name="status" value={formData.status} onChange={handleInputChange}>
                                 <option value="Ativo">Ativo</option>
                                 <option value="Em análise">Em análise</option>
                                 <option value="Arquivado">Arquivado</option>
-                                <option value="Suspenso">Suspenso</option>
+                                <option value="Aguardando Documentos">Aguardando Documentos</option>
                                 <option value="Finalizado com Êxito">Finalizado com Êxito</option>
                                 <option value="Finalizado sem Êxito">Finalizado sem Êxito</option>
                             </select>
@@ -272,10 +284,10 @@ function DetalhesDoProcesso({ processo, client, onBack }) {
                     </>
                 ) : (
                     <>
-                        <div className="info-item"><strong>Nº Processo (CNJ)</strong><p>{currentProcesso.numeroProcesso || 'Não informado'}</p></div>
-                        <div className="info-item"><strong>Data de Início (DER)</strong><p>{formatDateForDisplay(currentProcesso.dataInicio)}</p></div>
-                        <div className="info-item"><strong>Status</strong><p>{currentProcesso.status}</p></div>
-                        <div className="info-item"><strong>Fase Atual</strong><p>{currentProcesso.faseAtual || 'Não informada'}</p></div>
+                        <div className="info-item"><strong>Nº Processo (CNJ)</strong><p>{currentProcesso.NUMERO_PROCESSO || 'Não informado'}</p></div>
+                        <div className="info-item"><strong>Data de Início (DER)</strong><p>{formatDateForDisplay(currentProcesso.DATA_ENTRADA)}</p></div>
+                        <div className="info-item"><strong>Status</strong><p>{currentProcesso.STATUS}</p></div>
+                        <div className="info-item"><strong>Fase Atual</strong><p>{currentProcesso.FASE_ATUAL || 'Não informada'}</p></div>
                         <div className="info-item"><strong>Data da Audiência</strong><p>{formatDateForDisplay(currentProcesso.dataAudiencia)}</p></div>
                     </>
                 )}

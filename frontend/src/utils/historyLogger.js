@@ -3,27 +3,31 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 /**
  * Registra um evento no histórico de um cliente específico.
- * * @param {string} clientId - O ID do cliente para associar o evento.
- * @param {string} acao - A descrição da ação realizada (ex: "Dados Editados").
- * @param {string} responsavel - O nome ou email do usuário que realizou a ação.
+ * * @param {string} clientId - O ID do documento do cliente.
+ * @param {string} event - A descrição do evento que ocorreu.
+ * @param {string} responsible - O nome do usuário responsável pela ação.
  */
-export const logHistoryEvent = async (clientId, acao, responsavel) => {
-  if (!clientId || !acao || !responsavel) {
-    console.error("Dados insuficientes para registrar no histórico.");
+export const logHistoryEvent = async (clientId, event, responsible) => {
+  // Se o ID do cliente não for fornecido, não continue.
+  if (!clientId) {
+    console.error("Erro de log: O ID do cliente é necessário para registrar o histórico.");
     return;
   }
 
   try {
-    const historicoCollectionRef = collection(db, 'historicoCliente');
-    await addDoc(historicoCollectionRef, {
-      // AQUI ESTÁ A CORREÇÃO:
-      // Agora estamos salvando o ID do cliente junto com o evento.
-      clientId: clientId, 
-      acao: acao,
-      responsavel: responsavel,
-      timestamp: serverTimestamp() // Usa o timestamp do servidor para consistência
+    // --- CORREÇÃO PRINCIPAL AQUI ---
+    // Crie uma referência para a subcoleção 'historico' DENTRO do cliente.
+    const historyCollectionRef = collection(db, 'clientes', clientId, 'historico');
+
+    // Adicione o novo documento de log a essa subcoleção.
+    await addDoc(historyCollectionRef, {
+      evento: event,
+      responsavel: responsible,
+      timestamp: serverTimestamp(),
     });
+
   } catch (error) {
+    // A mensagem de erro agora será mais específica no console.
     console.error("Erro ao registrar evento no histórico: ", error);
   }
 };

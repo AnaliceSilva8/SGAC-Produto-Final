@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../firebase-config/config';
-import { collection, addDoc, query, getDoc, serverTimestamp, orderBy, doc, deleteDoc, where, onSnapshot } from 'firebase/firestore';
+// Import 'doc' para criar a referência da subcoleção
+import { collection, addDoc, query, getDoc, serverTimestamp, orderBy, doc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import Swal from 'sweetalert2';
 import './ObservationsTab.css';
@@ -35,7 +36,6 @@ function ObservationsTab({ client }) {
     fetchUserInfo();
   }, [user]);
 
-  // EFEITO CORRIGIDO: Agora usa onSnapshot para atualizações em tempo real
   useEffect(() => {
     if (!client?.id) {
         setObservations([]);
@@ -44,13 +44,14 @@ function ObservationsTab({ client }) {
     }
 
     setIsLoading(true);
-    const q = query(
-        collection(db, 'observacoes'),
-        where("clientId", "==", client.id),
-        orderBy('timestamp', 'desc')
-    );
 
-    // A função onSnapshot "ouve" as mudanças no banco de dados
+    // --- CORREÇÃO AQUI ---
+    // 1. Crie a referência para a SUBCOLEÇÃO DENTRO do cliente específico
+    const observationsRef = collection(db, 'clientes', client.id, 'observacoes');
+
+    // 2. A query agora é feita na subcoleção e não precisa mais do 'where'
+    const q = query(observationsRef, orderBy('timestamp', 'desc'));
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const obsList = querySnapshot.docs.map(doc => ({
             id: doc.id,
@@ -64,22 +65,25 @@ function ObservationsTab({ client }) {
         setIsLoading(false);
     });
 
-    // Função de limpeza: para de "ouvir" quando o componente é desmontado
     return () => unsubscribe();
 
-  }, [client]); // Dependência: refaz a "escuta" se o cliente mudar
+  }, [client]);
 
   const handleAddObservation = async () => {
-    if (!observationText.trim() || !userInfo) {
-        Swal.fire('Atenção!', 'Digite uma observação e certifique-se de estar logado.', 'warning');
+    if (!observationText.trim() || !userInfo || !client?.id) {
+        Swal.fire('Atenção!', 'Digite uma observação e certifique-se de que um cliente está selecionado.', 'warning');
         return;
     }
 
     try {
       const responsibleName = `${userInfo.cargo.toUpperCase()}: ${userInfo.nome.toUpperCase()}`;
-      // A lógica de adicionar continua a mesma
-      await addDoc(collection(db, 'observacoes'), {
-        clientId: client.id,
+      
+      // --- CORREÇÃO AQUI ---
+      // 3. Adicione o documento na SUBCOLEÇÃO correta
+      const observationsRef = collection(db, 'clientes', client.id, 'observacoes');
+      
+      await addDoc(observationsRef, {
+        // Não precisamos mais salvar o 'clientId' aqui
         descricao: observationText,
         responsavel: responsibleName,
         timestamp: serverTimestamp(),
@@ -90,8 +94,6 @@ function ObservationsTab({ client }) {
       await logHistoryEvent(client.id, `Adicionou a observação: "${observationText}"`, responsavelLog);
 
       setObservationText('');
-      // NÃO PRECISA MAIS CHAMAR fetchObservations() AQUI, a atualização é automática
-
       Swal.fire({
         icon: 'success', title: 'Observação adicionada!', toast: true,
         position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
@@ -103,30 +105,32 @@ function ObservationsTab({ client }) {
     }
   };
   
-  const handleSelectObservation = (id) => {
-    setSelectedObservations(prev =>
-      prev.includes(id) ? prev.filter(obsId => obsId !== id) : [...prev, id]
-    );
-  };
-
   const handleDeleteObservations = async () => {
+    if (!client?.id) return;
     try {
+      // --- CORREÇÃO AQUI ---
+      // 4. As promessas de exclusão devem apontar para os documentos na SUBCOLEÇÃO
       const deletePromises = selectedObservations.map(obsId => 
-        deleteDoc(doc(db, 'observacoes', obsId))
+        deleteDoc(doc(db, 'clientes', client.id, 'observacoes', obsId))
       );
       await Promise.all(deletePromises);
       
       const responsavelLog = userInfo.nome || user.email;
       await logHistoryEvent(client.id, `Excluiu ${selectedObservations.length} observação(ões)`, responsavelLog);
 
-      // A lista vai se atualizar sozinha, mas o Swal e a limpeza do state são necessários
       Swal.fire('Excluído!', `A(s) ${selectedObservations.length} observação(ões) foram excluídas.`, 'success');
       setSelectedObservations([]);
 
-    } catch (error)      {
+    } catch (error) {
       console.error("Erro ao excluir observações:", error);
       Swal.fire('Erro!', 'Falha ao excluir a(s) observação(ões).', 'error');
     }
+  };
+
+  const handleSelectObservation = (id) => {
+    setSelectedObservations(prev =>
+      prev.includes(id) ? prev.filter(obsId => obsId !== id) : [...prev, id]
+    );
   };
 
   const confirmDelete = () => {

@@ -1,24 +1,27 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ... (regras de usuarios e clientes sem alteração) ...
-
-    match /processos/{processoId} {
-      allow read, write: if request.auth != null;
-
-      // Regra para a timeline (histórico)
-      match /historico/{historicoId} {
-        allow read, write: if request.auth != null;
-      }
-      
-      // NOVA REGRA ADICIONADA AQUI
-      match /documentos/{documentoId} {
-        allow read, write: if request.auth != null;
-      }
+    // Usuários
+    match /usuarios/{userId} {
+      allow create, read: if request.auth != null;
+      allow update, delete: if request.auth.uid == userId;
     }
-    
-    // ... (restante das regras sem alteração) ...
+
+    // Clientes (pode ser lido/escrito por qualquer usuário autenticado)
+    match /clientes/{path=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Agendamentos
+    match /agendamentos/{agendamentoId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Notificações (corrigido campo de referência)
+    match /notificacoes/{notificationId} {
+      allow read, write: if request.auth != null 
+                         && request.auth.uid == resource.data.usuarioId;
+    }
   }
 }

@@ -1,25 +1,52 @@
-import React, { useState } from 'react';
-import { db } from '../../../firebase-config/config';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { db, auth } from '../../../firebase-config/config';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import Swal from 'sweetalert2';
 import { IMaskInput } from 'react-imask';
+import { logHistoryEvent } from '../../../utils/historyLogger';
 import './AddProcessoModal.css';
 
 function AddProcessoModal({ client, onClose, onProcessoAdded }) {
     const initialState = {
         numeroProcesso: '',
-        tipoBeneficio: '', // Campo alterado
+        tipoBeneficio: '',
         status: 'Ativo',
-        nit: client?.NIT || '', // Novo campo, preenchido com o do cliente se existir
-        nb: '', // Novo campo (Número do Benefício)
+        nit: client?.NIT || '',
+        nb: '',
         dataInicio: '',
         faseAtual: '',
         poloAtivo: client?.NOMECLIENTE || '',
-        poloPassivo: 'INSS', // Padrão para área previdenciária
+        poloPassivo: 'INSS',
     };
 
     const [formData, setFormData] = useState(initialState);
     const [isSaving, setIsSaving] = useState(false);
+    const [user] = useAuthState(auth);
+    const [userInfo, setUserInfo] = useState(null);
+
+    // Busca informações do usuário logado para os logs
+    useEffect(() => {
+        const fetchUserInfo = async () => {
+          if (user) {
+            const userDocRef = doc(db, 'usuarios', user.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+              setUserInfo(userDoc.data());
+            }
+          }
+        };
+        fetchUserInfo();
+      }, [user]);
+
+    // Reseta o formulário quando o modal é reaberto
+    useEffect(() => {
+        setFormData({
+            ...initialState,
+            nit: client?.NIT || '',
+            poloAtivo: client?.NOMECLIENTE || '',
+        });
+    }, [client]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -36,19 +63,41 @@ function AddProcessoModal({ client, onClose, onProcessoAdded }) {
             Swal.fire('Atenção!', 'Tipo de Benefício e Data de Início são obrigatórios.', 'warning');
             return;
         }
+        if (!client?.id || !userInfo) {
+            Swal.fire('Erro!', 'Cliente ou usuário não identificado. Por favor, faça o login novamente.', 'error');
+            return;
+        }
+
         setIsSaving(true);
         try {
-            await addDoc(collection(db, 'processos'), {
-                ...formData,
-                clientId: client.id,
-                // Mantém o nome do campo como 'areaDireito' no banco para consistência, mas com o valor do tipo de benefício
-                areaDireito: formData.tipoBeneficio, 
-                dataInicio: new Date(formData.dataInicio), 
-                createdAt: serverTimestamp(),
+            // --- CORREÇÃO PRINCIPAL AQUI ---
+            // 1. A referência agora aponta para a SUBCOLEÇÃO 'processos' dentro do cliente
+            const processosRef = collection(db, 'clientes', client.id, 'processos');
+
+            // 2. Adiciona o documento na subcoleção correta
+            await addDoc(processosRef, {
+                // ...formData, // Mantém os dados do formulário
+                // O nome do campo no banco será 'ESPECIE' para consistência com o ProcessosTab.jsx
+                ESPECIE: formData.tipoBeneficio,
+                NUMERO_PROCESSO: formData.numeroProcesso,
+                STATUS: formData.status,
+                NIT: formData.nit,
+                NB: formData.nb,
+                // O nome do campo no banco será 'DATA_ENTRADA' para consistência
+                DATA_ENTRADA: formData.dataInicio,
+                FASE_ATUAL: formData.faseAtual,
+                POLO_ATIVO: formData.poloAtivo,
+                POLO_PASSIVO: formData.poloPassivo,
+                DATA_CADASTRO: serverTimestamp(),
             });
+
+            const responsibleLog = userInfo.nome || user.email;
+            await logHistoryEvent(client.id, `Adicionou o processo: ${formData.tipoBeneficio}`, responsibleLog);
+
             Swal.fire('Sucesso!', 'Processo adicionado com sucesso!', 'success');
-            onProcessoAdded();
+            onProcessoAdded(); // Atualiza a lista e fecha o modal
             onClose();
+
         } catch (error) {
             console.error("Erro ao adicionar processo: ", error);
             Swal.fire('Erro!', 'Não foi possível adicionar o processo.', 'error');
@@ -56,7 +105,6 @@ function AddProcessoModal({ client, onClose, onProcessoAdded }) {
             setIsSaving(false);
         }
     };
-
 
     return (
         <div className="modal-overlay">
@@ -140,7 +188,7 @@ function AddProcessoModal({ client, onClose, onProcessoAdded }) {
                                 <option value="Finalizado sem Êxito">Finalizado sem Êxito</option>
                             </select>
                         </div>
-                         
+                        
                         <div className="form-group">
                             <label htmlFor="faseAtual">Fase Atual</label>
                             <input type="text" id="faseAtual" name="faseAtual" value={formData.faseAtual} onChange={handleInputChange} placeholder="Ex: Aguardando perícia" />
