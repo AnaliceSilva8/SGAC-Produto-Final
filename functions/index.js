@@ -1,41 +1,89 @@
+// functions/index.js
+
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const { onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
 
 // --- FUNÇÃO 1: CRIAR USUÁRIOS ---
-exports.createNewUser = onCall(async (request) => {
-    const data = request.data;
-    if (!data || !data.userData) {
-        throw new functions.https.HttpsError("invalid-argument", "Dados do usuário ausentes.");
-    }
-    const { email, password, nome, cpf, dataNascimento, cargo } = data.userData;
-    if (!email || !password || !nome || !cpf || !dataNascimento || !cargo) {
-        throw new functions.https.HttpsError("invalid-argument", "Todos os campos obrigatórios devem ser preenchidos.");
-    }
-    if (password.length < 6) {
-        throw new functions.https.HttpsError("invalid-argument", "A senha deve ter no mínimo 6 caracteres.");
-    }
-    try {
-        const userRecord = await admin.auth().createUser({ email, password, displayName: nome });
-        await admin.firestore().collection("usuarios").doc(userRecord.uid).set({
-            nome, cpf, dataNascimento, cargo, email,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        return { success: true, message: `Usuário ${nome} criado com sucesso.` };
-    } catch (error) {
-        console.error("CF: Erro ao criar usuário:", error);
-        if (error.code === "auth/email-already-exists") {
-            throw new functions.https.HttpsError("already-exists", "Este e-mail já está em uso.");
-        }
-        throw new functions.https.HttpsError("internal", "Ocorreu um erro interno ao criar o usuário.");
-    }
+// Utiliza a sintaxe da v1 (functions.https.onCall) para garantir compatibilidade com CORS no ambiente de desenvolvimento.
+exports.createNewUser = functions.https.onCall(async (data, context) => {
+    // Verifica se o usuário que está fazendo a chamada é um administrador
+    if (!context.auth || context.auth.token.perfil !== 'admin') {
+        throw new functions.https.HttpsError("permission-denied", "Apenas administradores podem criar novos usuários.");
+    }
+
+    if (!data || !data.userData) {
+        throw new functions.https.HttpsError("invalid-argument", "Dados do usuário ausentes.");
+    }
+    
+    const { email, password, nome, cpf, dataNascimento, cargo, perfil } = data.userData;
+    if (!email || !password || !nome || !cpf || !dataNascimento || !cargo || !perfil) {
+        throw new functions.https.HttpsError("invalid-argument", "Todos os campos obrigatórios devem ser preenchidos.");
+    }
+
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
+    if (!passwordRegex.test(password)) {
+        throw new functions.https.HttpsError("invalid-argument", "A senha deve ter no mínimo 8 caracteres, contendo letras e números.");
+    }
+
+    try {
+        const cpfQuery = await admin.firestore().collection("usuarios").where("cpf", "==", cpf).get();
+        if (!cpfQuery.empty) {
+            throw new functions.https.HttpsError("already-exists", "Este CPF já está cadastrado no sistema.");
+        }
+
+        const userRecord = await admin.auth().createUser({ email, password, displayName: nome });
+        await admin.auth().setCustomUserClaims(userRecord.uid, { perfil: perfil });
+
+        await admin.firestore().collection("usuarios").doc(userRecord.uid).set({
+            nome, cpf, dataNascimento, cargo, email, perfil,
+            status: 'ativo',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { success: true, message: `Usuário ${nome} criado com sucesso.` };
+    } catch (error) {
+        console.error("CF: Erro ao criar usuário:", error);
+        if (error.code === "auth/email-already-exists") {
+            throw new functions.https.HttpsError("already-exists", "Este e-mail já está em uso.");
+        }
+        if (error.httpsErrorCode) {
+            throw error;
+        }
+        throw new functions.https.HttpsError("internal", "Ocorreu um erro interno ao criar o usuário.");
+    }
+});
+
+// --- FUNÇÃO 2: INATIVAR/REATIVAR USUÁRIO ---
+exports.toggleUserStatus = functions.https.onCall(async (data, context) => {
+    if (!context.auth || context.auth.token.perfil !== 'admin') {
+        throw new functions.https.HttpsError("permission-denied", "Apenas administradores podem alterar o status de um usuário.");
+    }
+
+    const { uid, newStatus } = data;
+    if (!uid || !newStatus) {
+        throw new functions.https.HttpsError("invalid-argument", "UID do usuário e novo status são obrigatórios.");
+    }
+
+    if (context.auth.uid === uid) {
+        throw new functions.https.HttpsError("failed-precondition", "Você não pode inativar a si mesmo.");
+    }
+
+    try {
+        const isDisabled = newStatus === 'inativo';
+        await admin.auth().updateUser(uid, { disabled: isDisabled });
+        await admin.firestore().collection("usuarios").doc(uid).update({ status: newStatus });
+        return { success: true, message: `Status do usuário atualizado para ${newStatus}.` };
+    } catch (error) {
+        console.error("CF: Erro ao alterar status do usuário:", error);
+        throw new functions.https.HttpsError("internal", "Ocorreu um erro ao atualizar o status do usuário.");
+    }
 });
 
 
-// --- FUNÇÃO 2: NOTIFICAR SOBRE ANIVERSÁRIOS ---
+// --- FUNÇÃO 3: NOTIFICAR SOBRE ANIVERSÁRIOS ---
 exports.checkAniversarios = onSchedule("every 24 hours", async (event) => {
     const db = admin.firestore();
     console.log("Iniciando verificação de aniversários...");
@@ -43,7 +91,7 @@ exports.checkAniversarios = onSchedule("every 24 hours", async (event) => {
     const sufixoDataHoje = `-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
     try {
         const clientesSnapshot = await db.collection("clientes").get();
-        const usuariosSnapshot = await db.collection("usuarios").get();
+        const usuariosSnapshot = await db.collection("usuarios").where("status", "==", "ativo").get(); // Notificar apenas usuários ativos
         const allUserIds = usuariosSnapshot.docs.map(doc => doc.id);
         if(allUserIds.length === 0) return null;
         for (const clienteDoc of clientesSnapshot.docs) {
@@ -51,7 +99,7 @@ exports.checkAniversarios = onSchedule("every 24 hours", async (event) => {
             if (clienteData.DATANASCIMENTO && typeof clienteData.DATANASCIMENTO === 'string' && clienteData.DATANASCIMENTO.endsWith(sufixoDataHoje)) {
                 const notificationPromises = allUserIds.map(userId =>
                     db.collection("notificacoes").add({
-                        userId,
+                        usuarioId: userId,
                         titulo: "Aniversário de Cliente",
                         mensagem: `Hoje é aniversário de ${clienteData.NOMECLIENTE}!`,
                         clienteNome: clienteData.NOMECLIENTE,
@@ -70,7 +118,7 @@ exports.checkAniversarios = onSchedule("every 24 hours", async (event) => {
     } catch (error) { console.error("Erro ao verificar aniversários:", error); }
 });
 
-// --- FUNÇÃO 3: NOTIFICAR SOBRE ATENDIMENTOS AGENDADOS ---
+// --- FUNÇÃO 4: NOTIFICAR SOBRE ATENDIMENTOS AGENDADOS ---
 exports.checkAtendimentos = onSchedule("every 24 hours", async (event) => {
     const db = admin.firestore();
     console.log("Iniciando verificação de atendimentos agendados...");
@@ -83,16 +131,36 @@ exports.checkAtendimentos = onSchedule("every 24 hours", async (event) => {
         const hojeSnapshot = await atendimentosHojeQuery.get();
         for (const doc of hojeSnapshot.docs) {
             const atendimento = doc.data();
-            const mensagem = `Você tem um atendimento com ${atendimento.clienteNome} às ${atendimento.horario}.`;
-            await db.collection("notificacoes").add({ userId: atendimento.advogadoId, titulo: "Atendimento Hoje", mensagem, clienteNome: atendimento.clienteNome, horario: atendimento.horario, tipo: "atendimento_hoje", lida: false, timestamp: admin.firestore.FieldValue.serverTimestamp(), link: `/atendimentos` });
+            await db.collection("notificacoes").add({ 
+                usuarioId: atendimento.advogadoId, 
+                titulo: "Atendimento Hoje", 
+                mensagem: `Você tem um atendimento com ${atendimento.clienteNome} às ${atendimento.horario}.`,
+                clienteNome: atendimento.clienteNome,
+                advogadoNome: atendimento.advogadoNome,
+                horario: atendimento.horario, 
+                tipo: "atendimento_hoje", 
+                lida: false, 
+                timestamp: admin.firestore.FieldValue.serverTimestamp(), 
+                link: `/atendimentos` 
+            });
             console.log(`Notificação de atendimento (hoje) criada para Dr(a). ${atendimento.advogadoNome}`);
         }
         const atendimentosAmanhaQuery = db.collection("agendamentos").where('data', '>=', inicioAmanha).where('data', '<=', fimAmanha);
         const amanhaSnapshot = await atendimentosAmanhaQuery.get();
         for (const doc of amanhaSnapshot.docs) {
             const atendimento = doc.data();
-            const mensagem = `Você tem um atendimento com ${atendimento.clienteNome} às ${atendimento.horario}.`;
-            await db.collection("notificacoes").add({ userId: atendimento.advogadoId, titulo: "Atendimento Amanhã", mensagem, clienteNome: atendimento.clienteNome, horario: atendimento.horario, tipo: "atendimento_amanha", lida: false, timestamp: admin.firestore.FieldValue.serverTimestamp(), link: `/atendimentos` });
+            await db.collection("notificacoes").add({ 
+                usuarioId: atendimento.advogadoId,
+                titulo: "Atendimento Amanhã", 
+                mensagem: `Você tem um atendimento com ${atendimento.clienteNome} às ${atendimento.horario}.`,
+                clienteNome: atendimento.clienteNome,
+                advogadoNome: atendimento.advogadoNome,
+                horario: atendimento.horario, 
+                tipo: "atendimento_amanha", 
+                lida: false, 
+                timestamp: admin.firestore.FieldValue.serverTimestamp(), 
+                link: `/atendimentos` 
+            });
             console.log(`Notificação de atendimento (amanhã) criada para Dr(a). ${atendimento.advogadoNome}`);
         }
         console.log("Verificação de atendimentos concluída.");

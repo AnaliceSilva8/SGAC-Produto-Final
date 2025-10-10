@@ -6,11 +6,11 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from './firebase-config/config';
 import PrivateRoute from './components/PrivateRoute';
 import LoginPage from './pages/login/LoginPage';
-import SignUpPage from './pages/signup/SignUpPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
 import ClientDetailsPage from './pages/client-details/ClientDetailsPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import AtendimentosPage from './pages/atendimentos/AtendimentosPage';
+import UsersPage from './pages/users/UsersPage'; // A linha que causa o erro se o arquivo não for encontrado
 
 function App() {
   const [user, loading] = useAuthState(auth);
@@ -26,16 +26,14 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Rotas Públicas: Login E Cadastro */}
         <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
-        <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to="/" />} />
 
-        {/* Rotas Protegidas */}
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/cliente/:id" element={<ClientDetailsPage />} />
           <Route path="/notificacoes" element={<NotificationsPage />} />
           <Route path="/atendimentos" element={<AtendimentosPage />} />
+          <Route path="/usuarios" element={<UsersPage />} />
         </Route>
       </Routes>
     </Router>
