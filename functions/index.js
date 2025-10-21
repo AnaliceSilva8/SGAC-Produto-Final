@@ -2,12 +2,12 @@
 
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const cors = require("cors")({ origin: true }); // Importa e configura o CORS para aceitar requisições do seu frontend
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
 
-// --- FUNÇÃO 1: CRIAR USUÁRIOS ---
-// Utiliza a sintaxe da v1 (functions.https.onCall) para garantir compatibilidade com CORS no ambiente de desenvolvimento.
+// --- FUNÇÃO 1: CRIAR USUÁRIOS (COM VALIDAÇÃO DE IDADE) ---
 exports.createNewUser = functions.https.onCall(async (data, context) => {
     // Verifica se o usuário que está fazendo a chamada é um administrador
     if (!context.auth || context.auth.token.perfil !== 'admin') {
@@ -22,6 +22,26 @@ exports.createNewUser = functions.https.onCall(async (data, context) => {
     if (!email || !password || !nome || !cpf || !dataNascimento || !cargo || !perfil) {
         throw new functions.https.HttpsError("invalid-argument", "Todos os campos obrigatórios devem ser preenchidos.");
     }
+
+    // --- VALIDAÇÃO DE DATA DE NASCIMENTO E IDADE ---
+    const dob = new Date(dataNascimento);
+    const today = new Date();
+    // Ajusta o fuso horário para o do Brasil (UTC-3) para evitar erros de data
+    dob.setUTCHours(dob.getUTCHours() - 3);
+    today.setUTCHours(today.getUTCHours() - 3);
+
+    if (dob >= today) { // Verifica se a data de nascimento não é hoje ou no futuro
+        throw new functions.https.HttpsError("invalid-argument", "A data de nascimento não pode ser uma data futura.");
+    }
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+    }
+    if (age < 18) {
+        throw new functions.https.HttpsError("invalid-argument", "O usuário deve ter no mínimo 18 anos.");
+    }
+    // --- FIM DA VALIDAÇÃO ---
 
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
     if (!passwordRegex.test(password)) {
@@ -49,41 +69,74 @@ exports.createNewUser = functions.https.onCall(async (data, context) => {
         if (error.code === "auth/email-already-exists") {
             throw new functions.https.HttpsError("already-exists", "Este e-mail já está em uso.");
         }
-        if (error.httpsErrorCode) {
+        if (error.httpsErrorCode) { // Re-lança erros HttpsError já formatados (como os de validação)
             throw error;
         }
         throw new functions.https.HttpsError("internal", "Ocorreu um erro interno ao criar o usuário.");
     }
 });
 
-// --- FUNÇÃO 2: INATIVAR/REATIVAR USUÁRIO ---
-exports.toggleUserStatus = functions.https.onCall(async (data, context) => {
-    if (!context.auth || context.auth.token.perfil !== 'admin') {
-        throw new functions.https.HttpsError("permission-denied", "Apenas administradores podem alterar o status de um usuário.");
-    }
 
-    const { uid, newStatus } = data;
-    if (!uid || !newStatus) {
-        throw new functions.https.HttpsError("invalid-argument", "UID do usuário e novo status são obrigatórios.");
-    }
+// --- FUNÇÃO 2: INATIVAR/REATIVAR USUÁRIO (CORRIGIDA COM CORS) ---
+// Alterada para onRequest para resolver o problema de CORS que bloqueava a requisição do frontend.
+exports.toggleUserStatus = functions.https.onRequest((req, res) => {
+    // O 'cors' envolve a lógica da função para lidar com a requisição preflight (OPTIONS)
+    cors(req, res, async () => {
+        // Assegura que o método seja POST, que é o padrão para ações que modificam dados
+        if (req.method !== 'POST') {
+            return res.status(405).send({ error: 'Método não permitido.' });
+        }
 
-    if (context.auth.uid === uid) {
-        throw new functions.https.HttpsError("failed-precondition", "Você não pode inativar a si mesmo.");
-    }
+        // Validação do token de autenticação enviado pelo frontend no cabeçalho
+        if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
+            console.error("toggleUserStatus: Token não encontrado no cabeçalho.");
+            return res.status(403).send({ error: 'Não autorizado: Token de autenticação ausente.' });
+        }
+        
+        const idToken = req.headers.authorization.split('Bearer ')[1];
 
-    try {
-        const isDisabled = newStatus === 'inativo';
-        await admin.auth().updateUser(uid, { disabled: isDisabled });
-        await admin.firestore().collection("usuarios").doc(uid).update({ status: newStatus });
-        return { success: true, message: `Status do usuário atualizado para ${newStatus}.` };
-    } catch (error) {
-        console.error("CF: Erro ao alterar status do usuário:", error);
-        throw new functions.https.HttpsError("internal", "Ocorreu um erro ao atualizar o status do usuário.");
-    }
+        try {
+            // Verifica se o token é válido e decodifica para obter as informações do usuário
+            const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+            // Verifica se o usuário que fez a chamada tem o perfil de 'admin'
+            if (decodedToken.perfil !== 'admin') {
+                return res.status(403).send({ error: 'Permissão negada: Apenas administradores podem realizar esta ação.' });
+            }
+
+            // Extrai os dados enviados no corpo da requisição pelo frontend
+            const { uid, newStatus } = req.body.data; // O SDK do Firebase Functions encapsula em 'data'
+            if (!uid || !newStatus || !['ativo', 'inativo'].includes(newStatus)) {
+                return res.status(400).send({ error: 'Dados inválidos: UID do usuário e um status válido ("ativo" ou "inativo") são obrigatórios.' });
+            }
+            
+            // Impede que um administrador se inactive
+            if (decodedToken.uid === uid) {
+                return res.status(400).send({ error: 'Ação não permitida: Você não pode inativar a si mesmo.' });
+            }
+
+            const isDisabled = newStatus === 'inativo';
+            // Atualiza o status no serviço de Autenticação do Firebase (desabilita o login)
+            await admin.auth().updateUser(uid, { disabled: isDisabled });
+            // Atualiza o status no documento do Firestore para refletir na UI
+            await admin.firestore().collection("usuarios").doc(uid).update({ status: newStatus });
+
+            console.log(`Status do usuário ${uid} atualizado para ${newStatus} pelo admin ${decodedToken.uid}`);
+            return res.status(200).send({ data: { success: true, message: `Status do usuário atualizado para ${newStatus}.` }});
+
+        } catch (error) {
+            console.error("CF: Erro ao alterar status do usuário:", error);
+            if (error.code === 'auth/id-token-expired') {
+                 return res.status(401).send({ error: 'Sessão expirada. Por favor, faça login novamente.'});
+            }
+            return res.status(500).send({ error: 'Ocorreu um erro interno ao tentar atualizar o status do usuário.' });
+        }
+    });
 });
 
 
 // --- FUNÇÃO 3: NOTIFICAR SOBRE ANIVERSÁRIOS ---
+// (Nenhuma alteração necessária, seu código original está mantido)
 exports.checkAniversarios = onSchedule("every 24 hours", async (event) => {
     const db = admin.firestore();
     console.log("Iniciando verificação de aniversários...");
@@ -119,6 +172,7 @@ exports.checkAniversarios = onSchedule("every 24 hours", async (event) => {
 });
 
 // --- FUNÇÃO 4: NOTIFICAR SOBRE ATENDIMENTOS AGENDADOS ---
+// (Nenhuma alteração necessária, seu código original está mantido)
 exports.checkAtendimentos = onSchedule("every 24 hours", async (event) => {
     const db = admin.firestore();
     console.log("Iniciando verificação de atendimentos agendados...");

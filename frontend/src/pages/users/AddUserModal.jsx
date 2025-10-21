@@ -6,7 +6,26 @@ import { IMaskInput } from 'react-imask';
 import Swal from 'sweetalert2';
 import './AddUserModal.css';
 
-function AddUserModal({ isOpen, onClose }) {
+// Função para validar CPF, necessária para o formulário
+function validaCPF(cpf) {
+    cpf = String(cpf).replace(/[^\d]+/g, '');
+    if (cpf === '') return false;
+    if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
+    let add = 0;
+    for (let i = 0; i < 9; i++) add += parseInt(cpf.charAt(i)) * (10 - i);
+    let rev = 11 - (add % 11);
+    if (rev === 10 || rev === 11) rev = 0;
+    if (rev !== parseInt(cpf.charAt(9))) return false;
+    add = 0;
+    for (let i = 0; i < 10; i++) add += parseInt(cpf.charAt(i)) * (11 - i);
+    rev = 11 - (add % 11);
+    if (rev === 10 || rev === 11) rev = 0;
+    if (rev !== parseInt(cpf.charAt(10))) return false;
+    return true;
+}
+
+
+function AddUserModal({ isOpen, onClose, onUserAdded }) {
     const [formData, setFormData] = useState({
         nome: '',
         email: '',
@@ -31,10 +50,29 @@ function AddUserModal({ isOpen, onClose }) {
                 break;
             case 'cpf':
                 if (!value) errorMsg = 'O CPF é obrigatório.';
-                else if (value.replace(/\D/g, '').length !== 11) errorMsg = 'O CPF deve ter 11 dígitos.';
+                else if (!validaCPF(value)) errorMsg = 'O CPF é inválido.';
                 break;
             case 'dataNascimento':
-                if (!value) errorMsg = 'A data de nascimento é obrigatória.';
+                if (!value) {
+                    errorMsg = 'A data de nascimento é obrigatória.';
+                } else {
+                    const dob = new Date(value);
+                    const today = new Date();
+                    dob.setUTCHours(0,0,0,0);
+                    today.setUTCHours(0,0,0,0);
+                    if (dob >= today) {
+                        errorMsg = "A data de nascimento não pode ser futura.";
+                    } else {
+                        let age = today.getFullYear() - dob.getFullYear();
+                        const m = today.getMonth() - dob.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+                            age--;
+                        }
+                        if (age < 18) {
+                            errorMsg = "O usuário deve ter no mínimo 18 anos.";
+                        }
+                    }
+                }
                 break;
             case 'password':
                 if (!value) errorMsg = 'A senha é obrigatória.';
@@ -69,7 +107,6 @@ function AddUserModal({ isOpen, onClose }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         let formIsValid = true;
         const newErrors = {};
         Object.keys(formData).forEach(key => {
@@ -79,12 +116,8 @@ function AddUserModal({ isOpen, onClose }) {
                 formIsValid = false;
             }
         });
-
         setErrors(newErrors);
-
-        if (!formIsValid) {
-            return;
-        }
+        if (!formIsValid) return;
 
         setIsLoading(true);
         try {
@@ -92,14 +125,18 @@ function AddUserModal({ isOpen, onClose }) {
             const createNewUser = httpsCallable(functions, 'createNewUser');
             await createNewUser({ userData: formData });
 
-            Swal.fire({
+            await Swal.fire({
                 icon: 'success',
                 title: 'Sucesso!',
                 text: `Usuário ${formData.nome} cadastrado com sucesso.`,
                 timer: 3000,
                 showConfirmButton: false
             });
-            onClose(); // Fecha o modal
+            
+            if (onUserAdded) {
+                onUserAdded();
+            }
+            onClose();
         } catch (error) {
             console.error("Erro ao criar usuário:", error);
             Swal.fire({
