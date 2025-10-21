@@ -1,28 +1,42 @@
-# Dependências e arquivos de build
+# =========================================================================
+# Dependências e Arquivos de Build
+# =========================================================================
+# Ignora todas as pastas node_modules no projeto
 node_modules/
-/frontend/node_modules/
-/backend/node_modules/
-/frontend/build/
-dist/
 
+# Ignora pastas de build comuns
+/dist
+/build
+/.output
+/.next
+
+# =========================================================================
 # Logs
+# =========================================================================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
-# Arquivos de ambiente (NUNCA envie senhas ou chaves de API)
+# =========================================================================
+# Arquivos de Ambiente (NUNCA envie senhas ou chaves de API)
+# =========================================================================
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 
-# Arquivos de credenciais da Google Cloud
-backend/serviceAccountKey.json
-serviceAccountKey.json.json
+# =========================================================================
+# Credenciais e Arquivos de Serviço
+# =========================================================================
+# Ignora arquivos de chaves de serviço do Google Cloud e outros
+*.json # CUIDADO: Se você precisa versionar algum .json, seja mais específico
+# Exemplo mais seguro se você tiver outros .json:
+serviceAccountKey.json
+serviceAccountKey.*.json
+*service-account*.json
 
-# Pasta de dependências (essencial para projetos Node.js)
-node_modules
-
-# Arquivos de variáveis de ambiente
-.env
+# =========================================================================
+# Arquivos de Sistema Operacional
+# =========================================================================
+.DS_Store
+Thumbs.db
