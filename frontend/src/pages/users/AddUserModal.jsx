@@ -1,12 +1,17 @@
 // frontend/src/pages/users/AddUserModal.jsx
 
-import React, { useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import React, { useState, useEffect } from 'react';
+import { httpsCallable } from 'firebase/functions';
+import { getAuth } from "firebase/auth";
 import { IMaskInput } from 'react-imask';
 import Swal from 'sweetalert2';
 import './AddUserModal.css';
+import { functions } from '../../firebase-config/config';
+// --- INÍCIO DA CORREÇÃO ---
+import { jwtDecode } from "jwt-decode"; // <<< ESTA LINHA ESTAVA FALTANDO
+// --- FIM DA CORREÇÃO ---
 
-// Função para validar CPF, necessária para o formulário
+// (A função validaCPF não precisa de alterações)
 function validaCPF(cpf) {
     cpf = String(cpf).replace(/[^\d]+/g, '');
     if (cpf === '') return false;
@@ -24,9 +29,8 @@ function validaCPF(cpf) {
     return true;
 }
 
-
 function AddUserModal({ isOpen, onClose, onUserAdded }) {
-    const [formData, setFormData] = useState({
+    const initialFormData = {
         nome: '',
         email: '',
         cpf: '',
@@ -34,10 +38,19 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
         password: '',
         cargo: '',
         perfil: 'normal',
-    });
+    };
+    const [formData, setFormData] = useState(initialFormData);
     const [errors, setErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);
 
+    useEffect(() => {
+        if (isOpen) {
+            setFormData(initialFormData);
+            setErrors({});
+        }
+    }, [isOpen]);
+
+    // (As funções de validação e input handlers permanecem as mesmas)
     const validateField = (name, value) => {
         let errorMsg = '';
         switch (name) {
@@ -49,24 +62,24 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
                 else if (!/\S+@\S+\.\S+/.test(value)) errorMsg = 'O e-mail é inválido.';
                 break;
             case 'cpf':
-                if (!value) errorMsg = 'O CPF é obrigatório.';
-                else if (!validaCPF(value)) errorMsg = 'O CPF é inválido.';
+                const numericCpf = String(value).replace(/[^\d]+/g, '');
+                if (!numericCpf) errorMsg = 'O CPF é obrigatório.';
+                else if (!validaCPF(numericCpf)) errorMsg = 'O CPF é inválido.';
                 break;
             case 'dataNascimento':
                 if (!value) {
                     errorMsg = 'A data de nascimento é obrigatória.';
                 } else {
-                    const dob = new Date(value);
+                    const dob = new Date(value + 'T00:00:00');
                     const today = new Date();
-                    dob.setUTCHours(0,0,0,0);
-                    today.setUTCHours(0,0,0,0);
+                    today.setHours(0, 0, 0, 0);
                     if (dob >= today) {
-                        errorMsg = "A data de nascimento não pode ser futura.";
+                        errorMsg = "A data de nascimento deve ser anterior ao dia de hoje.";
                     } else {
                         let age = today.getFullYear() - dob.getFullYear();
                         const m = today.getMonth() - dob.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-                            age--;
+                             age--;
                         }
                         if (age < 18) {
                             errorMsg = "O usuário deve ter no mínimo 18 anos.";
@@ -88,17 +101,14 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
         }
         return errorMsg;
     };
-
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        
         if (errors[name]) {
             const error = validateField(name, value);
             setErrors(prev => ({ ...prev, [name]: error }));
         }
     };
-
     const handleBlur = (e) => {
         const { name, value } = e.target;
         const error = validateField(name, value);
@@ -107,43 +117,47 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        let formIsValid = true;
-        const newErrors = {};
-        Object.keys(formData).forEach(key => {
-            const error = validateField(key, formData[key]);
-            if (error) {
-                newErrors[key] = error;
-                formIsValid = false;
-            }
-        });
-        setErrors(newErrors);
-        if (!formIsValid) return;
+        let formIsValid = true; const newErrors = {}; Object.keys(formData).forEach(key => { if (key === 'perfil') return; const error = validateField(key, formData[key]); if (error) { newErrors[key] = error; formIsValid = false; } }); setErrors(newErrors); if (!formIsValid) return;
 
         setIsLoading(true);
         try {
-            const functions = getFunctions();
-            const createNewUser = httpsCallable(functions, 'createNewUser');
-            await createNewUser({ userData: formData });
+            console.log("--- INICIANDO SUBMISSÃO ---");
+            const auth = getAuth();
+            const currentUser = auth.currentUser;
 
-            await Swal.fire({
-                icon: 'success',
-                title: 'Sucesso!',
-                text: `Usuário ${formData.nome} cadastrado com sucesso.`,
-                timer: 3000,
-                showConfirmButton: false
-            });
-            
-            if (onUserAdded) {
-                onUserAdded();
+            if (!currentUser) {
+                console.error("ERRO FATAL: auth.currentUser é NULO.");
+                throw new Error("Usuário não autenticado. Faça login novamente.");
             }
+            console.log("Usuário encontrado:", currentUser.email);
+
+            console.log("Forçando atualização do token...");
+            const idToken = await currentUser.getIdToken(true);
+            console.log("Token atualizado OK.");
+
+            const decodedToken = jwtDecode(idToken);
+            console.log("PERMISSÕES NO TOKEN (visto pelo Frontend):", decodedToken);
+
+            if (!decodedToken.perfil || decodedToken.perfil !== 'admin') {
+                console.error("ERRO DE PERMISSÃO (Frontend): O token NÃO contém a claim 'perfil: admin'. Claims:", decodedToken);
+            } else {
+                console.log("SUCESSO (Frontend): Claim 'perfil: admin' encontrada!");
+            }
+
+            const createNewUser = httpsCallable(functions, 'createNewUser');
+            console.log("Chamando Cloud Function 'createNewUser'...");
+            
+            await createNewUser(formData);
+            console.log("Cloud Function executada com sucesso.");
+
+            await Swal.fire({ icon: 'success', title: 'Sucesso!', text: `Usuário ${formData.nome} cadastrado com sucesso.`, timer: 3000, showConfirmButton: false });
+            
+            if (onUserAdded) { onUserAdded(); }
             onClose();
+
         } catch (error) {
-            console.error("Erro ao criar usuário:", error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Erro!',
-                text: error.message || 'Não foi possível cadastrar o usuário. Tente novamente.'
-            });
+            console.error("ERRO DETALHADO NO HANDLE SUBMIT:", error);
+            Swal.fire({ icon: 'error', title: 'Erro!', text: `Falha ao criar usuário: ${error.message}` });
         } finally {
             setIsLoading(false);
         }
@@ -159,6 +173,7 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
                     <button onClick={onClose} className="close-button">&times;</button>
                 </div>
                 <form onSubmit={handleSubmit} className="modal-form" noValidate>
+                    {/* O resto do seu formulário... */}
                     <div className="form-row">
                         <div className="form-group">
                             <label htmlFor="nome">Nome Completo</label>
@@ -171,18 +186,10 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
                             {errors.email && <span className="error-text">{errors.email}</span>}
                         </div>
                     </div>
-
                     <div className="form-row">
                         <div className="form-group">
                             <label htmlFor="cpf">CPF</label>
-                            <IMaskInput
-                                mask="000.000.000-00"
-                                id="cpf"
-                                name="cpf"
-                                value={formData.cpf}
-                                onAccept={(value) => handleInputChange({ target: { name: 'cpf', value } })}
-                                onBlur={handleBlur}
-                            />
+                            <IMaskInput mask="000.000.000-00" id="cpf" name="cpf" value={formData.cpf} onAccept={(value) => handleInputChange({ target: { name: 'cpf', value } })} onBlur={handleBlur} />
                             {errors.cpf && <span className="error-text">{errors.cpf}</span>}
                         </div>
                         <div className="form-group">
@@ -191,20 +198,18 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
                             {errors.dataNascimento && <span className="error-text">{errors.dataNascimento}</span>}
                         </div>
                     </div>
-                    
                     <div className="form-group">
                         <label htmlFor="password">Senha</label>
                         <input type="password" id="password" name="password" value={formData.password} onChange={handleInputChange} onBlur={handleBlur} />
                         {errors.password && <span className="error-text">{errors.password}</span>}
                     </div>
-
                     <div className="form-row">
                         <div className="form-group">
                             <label htmlFor="cargo">Cargo/Função</label>
                             <select id="cargo" name="cargo" value={formData.cargo} onChange={handleInputChange} onBlur={handleBlur}>
                                 <option value="" disabled>Selecione...</option>
                                 <option value="Advogado">Advogado</option>
-                                <option value="Secretário">Secretário</option>
+                                <option value="Secretária">Secretária</option>
                                 <option value="Estagiário">Estagiário</option>
                             </select>
                             {errors.cargo && <span className="error-text">{errors.cargo}</span>}
@@ -217,12 +222,9 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
                             </select>
                         </div>
                     </div>
-
                     <div className="modal-actions">
                         <button type="button" onClick={onClose} className="btn-cancel">Cancelar</button>
-                        <button type="submit" className="btn-confirm" disabled={isLoading}>
-                            {isLoading ? 'Cadastrando...' : 'Cadastrar'}
-                        </button>
+                        <button type="submit" className="btn-confirm" disabled={isLoading}>{isLoading ? 'Cadastrando...' : 'Cadastrar'}</button>
                     </div>
                 </form>
             </div>

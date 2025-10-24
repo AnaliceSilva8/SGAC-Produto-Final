@@ -2,221 +2,324 @@
 
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const cors = require("cors")({ origin: true }); // Importa e configura o CORS para aceitar requisições do seu frontend
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
 
-// --- FUNÇÃO 1: CRIAR USUÁRIOS (COM VALIDAÇÃO DE IDADE) ---
+// --- FUNÇÃO 1: CRIAR USUÁRIOS (onCall - CORRIGIDA PARA USAR UID COMO DOC ID) ---
 exports.createNewUser = functions.https.onCall(async (data, context) => {
-    // Verifica se o usuário que está fazendo a chamada é um administrador
-    if (!context.auth || context.auth.token.perfil !== 'admin') {
+    // ***** LINHA DE DEPURAÇÃO (Pode remover após confirmar que funciona) *****
+    console.log("Token de autenticação recebido:", JSON.stringify(context.auth, null, 2));
+    // ***** FIM DA LINHA DE DEPURAÇÃO *****
+
+    // Verifica admin
+    if (!context.auth || !context.auth.token || context.auth.token.perfil !== 'admin') {
+        console.error("Tentativa de criar usuário sem permissão de admin. Token:", JSON.stringify(context.auth?.token, null, 2));
         throw new functions.https.HttpsError("permission-denied", "Apenas administradores podem criar novos usuários.");
     }
 
-    if (!data || !data.userData) {
-        throw new functions.https.HttpsError("invalid-argument", "Dados do usuário ausentes.");
-    }
-    
-    const { email, password, nome, cpf, dataNascimento, cargo, perfil } = data.userData;
-    if (!email || !password || !nome || !cpf || !dataNascimento || !cargo || !perfil) {
+    // Valida dados recebidos
+    if (!data || !data.email || !data.password || !data.nome || !data.cpf || !data.dataNascimento || !data.cargo || !data.perfil) {
         throw new functions.https.HttpsError("invalid-argument", "Todos os campos obrigatórios devem ser preenchidos.");
     }
+    const { email, password, nome, cpf, dataNascimento, cargo, perfil } = data;
 
-    // --- VALIDAÇÃO DE DATA DE NASCIMENTO E IDADE ---
-    const dob = new Date(dataNascimento);
+    // Valida idade (mantida)
+    const dob = new Date(dataNascimento + 'T00:00:00-03:00');
     const today = new Date();
-    // Ajusta o fuso horário para o do Brasil (UTC-3) para evitar erros de data
-    dob.setUTCHours(dob.getUTCHours() - 3);
-    today.setUTCHours(today.getUTCHours() - 3);
+    const todayBrasil = new Date(today.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    todayBrasil.setHours(0, 0, 0, 0);
+    if (dob >= todayBrasil) { throw new functions.https.HttpsError("invalid-argument", "A data de nascimento deve ser anterior ao dia de hoje."); }
+    let age = todayBrasil.getFullYear() - dob.getFullYear();
+    const m = todayBrasil.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && todayBrasil.getDate() < dob.getDate())) { age--; }
+    if (age < 18) { throw new functions.https.HttpsError("invalid-argument", "O usuário deve ter no mínimo 18 anos."); }
 
-    if (dob >= today) { // Verifica se a data de nascimento não é hoje ou no futuro
-        throw new functions.https.HttpsError("invalid-argument", "A data de nascimento não pode ser uma data futura.");
-    }
-    let age = today.getFullYear() - dob.getFullYear();
-    const m = today.getMonth() - dob.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-        age--;
-    }
-    if (age < 18) {
-        throw new functions.https.HttpsError("invalid-argument", "O usuário deve ter no mínimo 18 anos.");
-    }
-    // --- FIM DA VALIDAÇÃO ---
-
+    // Valida senha (mantida)
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
-    if (!passwordRegex.test(password)) {
-        throw new functions.https.HttpsError("invalid-argument", "A senha deve ter no mínimo 8 caracteres, contendo letras e números.");
-    }
+    if (!passwordRegex.test(password)) { throw new functions.https.HttpsError("invalid-argument", "A senha deve ter no mínimo 8 caracteres, contendo letras e números."); }
 
     try {
-        const cpfQuery = await admin.firestore().collection("usuarios").where("cpf", "==", cpf).get();
-        if (!cpfQuery.empty) {
-            throw new functions.https.HttpsError("already-exists", "Este CPF já está cadastrado no sistema.");
-        }
+        console.log("INFO: Iniciando criação do usuário...");
+        // Verifica CPF duplicado (mantida)
+        const cpfLimpo = cpf.replace(/\D/g, '');
+        const cpfQuery = await admin.firestore().collection("usuarios").where("cpf", "==", cpfLimpo).get();
+        if (!cpfQuery.empty) { throw new functions.https.HttpsError("already-exists", "Este CPF já está cadastrado no sistema."); }
 
+        // Cria usuário no Auth (mantida)
         const userRecord = await admin.auth().createUser({ email, password, displayName: nome });
-        await admin.auth().setCustomUserClaims(userRecord.uid, { perfil: perfil });
+        console.log(`INFO: Usuário criado no Auth: ${userRecord.uid}`);
 
-        await admin.firestore().collection("usuarios").doc(userRecord.uid).set({
-            nome, cpf, dataNascimento, cargo, email, perfil,
+        // Define Custom Claim no Auth (mantida)
+        await admin.auth().setCustomUserClaims(userRecord.uid, { perfil: perfil });
+        console.log(`INFO: Custom claim { perfil: '${perfil}' } definida para ${userRecord.uid}`);
+
+        // ----- CORREÇÃO PRINCIPAL -----
+        // Salva/Atualiza dados no Firestore USANDO O UID DO AUTH COMO ID DO DOCUMENTO
+        console.log(`INFO: Salvando dados no Firestore com ID de documento = ${userRecord.uid}`);
+        await admin.firestore().collection("usuarios").doc(userRecord.uid).set({ // <<< USA userRecord.uid AQUI
+            nome,
+            cpf: cpfLimpo,
+            dataNascimento,
+            cargo,
+            email,
+            perfil, // Garante que 'perfil' seja salvo
             status: 'ativo',
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+            // Adicione outros campos se necessário
+        }); // Usa set() na primeira vez para garantir a criação do documento com o ID correto
+        console.log(`INFO: Documento salvo no Firestore para ${userRecord.uid}`);
+        // ----- FIM DA CORREÇÃO -----
 
+        console.log("--- createNewUser: CONCLUÍDA COM SUCESSO ---");
         return { success: true, message: `Usuário ${nome} criado com sucesso.` };
+
     } catch (error) {
-        console.error("CF: Erro ao criar usuário:", error);
-        if (error.code === "auth/email-already-exists") {
-            throw new functions.https.HttpsError("already-exists", "Este e-mail já está em uso.");
+        console.error("--- createNewUser: FALHOU DURANTE A CRIAÇÃO ---");
+        console.error("CF: Erro detalhado:", error);
+        // Tenta deletar o usuário do Auth se a escrita no Firestore falhar
+        if (error.code !== "auth/email-already-exists" && error.code !== "already-exists" && typeof userRecord !== 'undefined' && userRecord?.uid) {
+            try {
+                await admin.auth().deleteUser(userRecord.uid);
+                console.log(`INFO: Usuário ${userRecord.uid} deletado do Auth devido a erro no Firestore.`);
+            } catch (deleteError) {
+                console.error(`ERRO CRÍTICO: Falha ao deletar usuário ${userRecord.uid} do Auth após erro no Firestore:`, deleteError);
+            }
         }
-        if (error.httpsErrorCode) { // Re-lança erros HttpsError já formatados (como os de validação)
-            throw error;
+        if (error.code === "auth/email-already-exists") { throw new functions.https.HttpsError("already-exists", "Este e-mail já está em uso."); }
+        if (error.httpsErrorCode) { throw error; }
+        throw new functions.https.HttpsError("internal", `Ocorreu um erro interno ao criar o usuário: ${error.message}`);
+    }
+});
+
+// --- FUNÇÃO 2: INATIVAR/REATIVAR USUÁRIO ---
+// (Sem alterações necessárias aqui, pois já recebe o UID correto)
+exports.toggleUserStatus = functions.https.onCall(async (data, context) => {
+    if (!context.auth || context.auth.token.perfil !== 'admin') { throw new functions.https.HttpsError('permission-denied', 'Apenas administradores podem alterar o status.'); }
+    const { uid, newStatus } = data;
+    if (!uid || !newStatus || !['ativo', 'inativo'].includes(newStatus)) { throw new functions.https.HttpsError('invalid-argument', 'UID e status válidos são obrigatórios.'); }
+    if (context.auth.uid === uid) { throw new functions.https.HttpsError('failed-precondition', 'Você não pode inativar a si mesmo.'); }
+    try {
+        const isDisabled = newStatus === 'inativo';
+        await admin.auth().updateUser(uid, { disabled: isDisabled });
+        // Assume que o ID do documento é o UID
+        await admin.firestore().collection("usuarios").doc(uid).update({ status: newStatus });
+        const actionMessage = newStatus === 'ativo' ? 'reativado' : 'inativado';
+        return { success: true, message: `Usuário ${actionMessage} com sucesso.` };
+    } catch (error) {
+        console.error("CF: Erro ao alterar status:", error);
+        // Verifica se o erro foi porque o documento não existe (caso ID não seja UID)
+        if (error.code === 5) { // Código 'NOT_FOUND' do Firestore
+             console.error(`ERRO: Documento de usuário com ID ${uid} não encontrado no Firestore para atualizar status.`);
+             // Poderia tentar buscar pelo email e atualizar, mas é complexo
+             throw new functions.https.HttpsError('internal', 'Erro ao atualizar status: usuário não encontrado no banco de dados.');
         }
-        throw new functions.https.HttpsError("internal", "Ocorreu um erro interno ao criar o usuário.");
+        throw new functions.https.HttpsError('internal', 'Erro interno ao atualizar status.');
+    }
+});
+// --- FUNÇÃO 3: NOTIFICAR SOBRE ANIVERSÁRIOS ---
+exports.checkAniversarios = onSchedule("every day 09:00", async (event) => { // Executa todo dia às 9:00
+    // Define o fuso horário para São Paulo
+    const timeZone = "America/Sao_Paulo";
+    const db = admin.firestore();
+    console.log("Iniciando verificação de aniversários...");
+
+    // Obtém a data e hora atual no fuso horário de São Paulo
+    const hoje = new Date(new Date().toLocaleString("en-US", { timeZone }));
+    const diaHoje = String(hoje.getDate()).padStart(2, '0');
+    const mesHoje = String(hoje.getMonth() + 1).padStart(2, '0');
+    // Formato MM-DD para comparar com a parte final da data no Firestore (assumindo YYYY-MM-DD)
+    const diaMesHoje = `${mesHoje}-${diaHoje}`;
+
+    try {
+        const clientesSnapshot = await db.collection("clientes").get();
+        const usuariosSnapshot = await db.collection("usuarios").where("status", "==", "ativo").get();
+        const allUserIds = usuariosSnapshot.docs.map(doc => doc.id);
+        if (allUserIds.length === 0) {
+            console.log("Nenhum usuário ativo encontrado para notificar.");
+            return null;
+        }
+
+        let notificacoesCriadas = 0;
+        for (const clienteDoc of clientesSnapshot.docs) {
+            const clienteData = clienteDoc.data();
+            // Verifica se dataNascimento existe, é string e tem o formato YYYY-MM-DD
+            if (clienteData.dataNascimento && typeof clienteData.dataNascimento === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(clienteData.dataNascimento)) {
+                 const diaMesNascimento = clienteData.dataNascimento.substring(5); // Pega MM-DD
+                 if (diaMesNascimento === diaMesHoje) {
+                    const notificationPromises = allUserIds.map(userId =>
+                        db.collection("notificacoes").add({
+                            usuarioId: userId,
+                            titulo: "Aniversário de Cliente",
+                            mensagem: `Hoje é aniversário de ${clienteData.nomeCliente || 'Cliente sem nome'}!`,
+                            clienteId: clienteDoc.id,
+                            clienteNome: clienteData.nomeCliente || 'Cliente sem nome',
+                            dataNascimento: clienteData.dataNascimento,
+                            tipo: "aniversario_cliente",
+                            lida: false,
+                            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                            link: `/cliente/${clienteDoc.id}` // Ajuste o link se necessário
+                        })
+                    );
+                    await Promise.all(notificationPromises);
+                    console.log(`Notificação de aniversário criada para ${clienteData.nomeCliente || clienteDoc.id}`);
+                    notificacoesCriadas++;
+                 }
+            } else if (clienteData.dataNascimento) {
+                // Loga um aviso se o formato da data estiver incorreto
+                console.warn(`Cliente ${clienteDoc.id} (${clienteData.nomeCliente || 'sem nome'}) possui data de nascimento em formato inválido: ${clienteData.dataNascimento}`);
+            }
+        }
+        console.log(`Verificação de aniversários concluída. ${notificacoesCriadas} notificações criadas.`);
+    } catch (error) {
+         console.error("Erro CRÍTICO ao verificar aniversários:", error);
+         // Considerar enviar um alerta aqui se isso falhar consistentemente
     }
 });
 
 
-// --- FUNÇÃO 2: INATIVAR/REATIVAR USUÁRIO (CORRIGIDA COM CORS) ---
-// Alterada para onRequest para resolver o problema de CORS que bloqueava a requisição do frontend.
-exports.toggleUserStatus = functions.https.onRequest((req, res) => {
-    // O 'cors' envolve a lógica da função para lidar com a requisição preflight (OPTIONS)
-    cors(req, res, async () => {
-        // Assegura que o método seja POST, que é o padrão para ações que modificam dados
-        if (req.method !== 'POST') {
-            return res.status(405).send({ error: 'Método não permitido.' });
-        }
-
-        // Validação do token de autenticação enviado pelo frontend no cabeçalho
-        if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
-            console.error("toggleUserStatus: Token não encontrado no cabeçalho.");
-            return res.status(403).send({ error: 'Não autorizado: Token de autenticação ausente.' });
-        }
-        
-        const idToken = req.headers.authorization.split('Bearer ')[1];
-
-        try {
-            // Verifica se o token é válido e decodifica para obter as informações do usuário
-            const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-            // Verifica se o usuário que fez a chamada tem o perfil de 'admin'
-            if (decodedToken.perfil !== 'admin') {
-                return res.status(403).send({ error: 'Permissão negada: Apenas administradores podem realizar esta ação.' });
-            }
-
-            // Extrai os dados enviados no corpo da requisição pelo frontend
-            const { uid, newStatus } = req.body.data; // O SDK do Firebase Functions encapsula em 'data'
-            if (!uid || !newStatus || !['ativo', 'inativo'].includes(newStatus)) {
-                return res.status(400).send({ error: 'Dados inválidos: UID do usuário e um status válido ("ativo" ou "inativo") são obrigatórios.' });
-            }
-            
-            // Impede que um administrador se inactive
-            if (decodedToken.uid === uid) {
-                return res.status(400).send({ error: 'Ação não permitida: Você não pode inativar a si mesmo.' });
-            }
-
-            const isDisabled = newStatus === 'inativo';
-            // Atualiza o status no serviço de Autenticação do Firebase (desabilita o login)
-            await admin.auth().updateUser(uid, { disabled: isDisabled });
-            // Atualiza o status no documento do Firestore para refletir na UI
-            await admin.firestore().collection("usuarios").doc(uid).update({ status: newStatus });
-
-            console.log(`Status do usuário ${uid} atualizado para ${newStatus} pelo admin ${decodedToken.uid}`);
-            return res.status(200).send({ data: { success: true, message: `Status do usuário atualizado para ${newStatus}.` }});
-
-        } catch (error) {
-            console.error("CF: Erro ao alterar status do usuário:", error);
-            if (error.code === 'auth/id-token-expired') {
-                 return res.status(401).send({ error: 'Sessão expirada. Por favor, faça login novamente.'});
-            }
-            return res.status(500).send({ error: 'Ocorreu um erro interno ao tentar atualizar o status do usuário.' });
-        }
-    });
-});
-
-
-// --- FUNÇÃO 3: NOTIFICAR SOBRE ANIVERSÁRIOS ---
-// (Nenhuma alteração necessária, seu código original está mantido)
-exports.checkAniversarios = onSchedule("every 24 hours", async (event) => {
-    const db = admin.firestore();
-    console.log("Iniciando verificação de aniversários...");
-    const hoje = new Date();
-    const sufixoDataHoje = `-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
-    try {
-        const clientesSnapshot = await db.collection("clientes").get();
-        const usuariosSnapshot = await db.collection("usuarios").where("status", "==", "ativo").get(); // Notificar apenas usuários ativos
-        const allUserIds = usuariosSnapshot.docs.map(doc => doc.id);
-        if(allUserIds.length === 0) return null;
-        for (const clienteDoc of clientesSnapshot.docs) {
-            const clienteData = clienteDoc.data();
-            if (clienteData.DATANASCIMENTO && typeof clienteData.DATANASCIMENTO === 'string' && clienteData.DATANASCIMENTO.endsWith(sufixoDataHoje)) {
-                const notificationPromises = allUserIds.map(userId =>
-                    db.collection("notificacoes").add({
-                        usuarioId: userId,
-                        titulo: "Aniversário de Cliente",
-                        mensagem: `Hoje é aniversário de ${clienteData.NOMECLIENTE}!`,
-                        clienteNome: clienteData.NOMECLIENTE,
-                        dataNascimento: clienteData.DATANASCIMENTO,
-                        tipo: "aniversario_cliente",
-                        lida: false,
-                        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                        link: `/cliente/${clienteDoc.id}`
-                    })
-                );
-                await Promise.all(notificationPromises);
-                console.log(`Notificação de aniversário criada para ${clienteData.NOMECLIENTE}`);
-            }
-        }
-        console.log("Verificação de aniversários concluída.");
-    } catch (error) { console.error("Erro ao verificar aniversários:", error); }
-});
-
 // --- FUNÇÃO 4: NOTIFICAR SOBRE ATENDIMENTOS AGENDADOS ---
-// (Nenhuma alteração necessária, seu código original está mantido)
-exports.checkAtendimentos = onSchedule("every 24 hours", async (event) => {
+exports.checkAtendimentos = onSchedule("every day 08:00", async (event) => { // Executa todo dia às 8:00
+    const timeZone = "America/Sao_Paulo";
     const db = admin.firestore();
     console.log("Iniciando verificação de atendimentos agendados...");
-    const inicioHoje = new Date(); inicioHoje.setHours(0, 0, 0, 0);
-    const fimHoje = new Date(); fimHoje.setHours(23, 59, 59, 999);
+
+    const agoraBrasil = new Date(new Date().toLocaleString("en-US", { timeZone }));
+    const inicioHoje = new Date(agoraBrasil); inicioHoje.setHours(0, 0, 0, 0);
+    const fimHoje = new Date(agoraBrasil); fimHoje.setHours(23, 59, 59, 999);
     const inicioAmanha = new Date(inicioHoje); inicioAmanha.setDate(inicioHoje.getDate() + 1);
     const fimAmanha = new Date(fimHoje); fimAmanha.setDate(fimHoje.getDate() + 1);
+
+    // Convertendo para Timestamps do Firestore para a consulta
+    const inicioHojeTimestamp = admin.firestore.Timestamp.fromDate(inicioHoje);
+    const fimHojeTimestamp = admin.firestore.Timestamp.fromDate(fimHoje);
+    const inicioAmanhaTimestamp = admin.firestore.Timestamp.fromDate(inicioAmanha);
+    const fimAmanhaTimestamp = admin.firestore.Timestamp.fromDate(fimAmanha);
+
+    let notificacoesHoje = 0;
+    let notificacoesAmanha = 0;
+
     try {
-        const atendimentosHojeQuery = db.collection("agendamentos").where('data', '>=', inicioHoje).where('data', '<=', fimHoje);
+        // Busca atendimentos para HOJE
+        const atendimentosHojeQuery = db.collection("agendamentos")
+            .where('data', '>=', inicioHojeTimestamp)
+            .where('data', '<=', fimHojeTimestamp);
         const hojeSnapshot = await atendimentosHojeQuery.get();
-        for (const doc of hojeSnapshot.docs) {
+        const notificationPromisesHoje = [];
+
+        hojeSnapshot.forEach(doc => {
             const atendimento = doc.data();
-            await db.collection("notificacoes").add({ 
-                usuarioId: atendimento.advogadoId, 
-                titulo: "Atendimento Hoje", 
-                mensagem: `Você tem um atendimento com ${atendimento.clienteNome} às ${atendimento.horario}.`,
-                clienteNome: atendimento.clienteNome,
-                advogadoNome: atendimento.advogadoNome,
-                horario: atendimento.horario, 
-                tipo: "atendimento_hoje", 
-                lida: false, 
-                timestamp: admin.firestore.FieldValue.serverTimestamp(), 
-                link: `/atendimentos` 
-            });
-            console.log(`Notificação de atendimento (hoje) criada para Dr(a). ${atendimento.advogadoNome}`);
-        }
-        const atendimentosAmanhaQuery = db.collection("agendamentos").where('data', '>=', inicioAmanha).where('data', '<=', fimAmanha);
+            if (!atendimento.advogadoId) {
+                console.warn(`Atendimento ${doc.id} (hoje) sem advogadoId associado.`);
+                return; // Pula este agendamento se não houver advogado
+            }
+            // Formata a data e hora para a mensagem
+             const dataHoraAtendimento = atendimento.data ? atendimento.data.toDate().toLocaleString('pt-BR', { timeZone: timeZone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : 'Data/Hora não definida';
+
+            notificationPromisesHoje.push( db.collection("notificacoes").add({
+                 usuarioId: atendimento.advogadoId, // Notifica o advogado responsável
+                 titulo: "Lembrete: Atendimento Hoje",
+                 mensagem: `Você tem um atendimento agendado para hoje com ${atendimento.clienteNome || 'Cliente não especificado'} às ${dataHoraAtendimento.split(' ')[1]}.`, // Pega só a hora
+                 clienteId: atendimento.clienteId || null,
+                 clienteNome: atendimento.clienteNome || 'Cliente não especificado',
+                 advogadoId: atendimento.advogadoId,
+                 advogadoNome: atendimento.advogadoNome || 'Advogado não especificado',
+                 horario: atendimento.horario || 'Não definido', // Pode ser útil manter o campo original
+                 data: atendimento.data, // Salva o timestamp original
+                 tipo: "atendimento_hoje",
+                 lida: false,
+                 timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                 link: `/atendimentos` // Ou link para o atendimento específico se tiver ID
+            }));
+            notificacoesHoje++;
+        });
+
+        // Busca atendimentos para AMANHÃ
+        const atendimentosAmanhaQuery = db.collection("agendamentos")
+            .where('data', '>=', inicioAmanhaTimestamp)
+            .where('data', '<=', fimAmanhaTimestamp);
         const amanhaSnapshot = await atendimentosAmanhaQuery.get();
-        for (const doc of amanhaSnapshot.docs) {
+        const notificationPromisesAmanha = [];
+
+        amanhaSnapshot.forEach(doc => {
             const atendimento = doc.data();
-            await db.collection("notificacoes").add({ 
-                usuarioId: atendimento.advogadoId,
-                titulo: "Atendimento Amanhã", 
-                mensagem: `Você tem um atendimento com ${atendimento.clienteNome} às ${atendimento.horario}.`,
-                clienteNome: atendimento.clienteNome,
-                advogadoNome: atendimento.advogadoNome,
-                horario: atendimento.horario, 
-                tipo: "atendimento_amanha", 
-                lida: false, 
-                timestamp: admin.firestore.FieldValue.serverTimestamp(), 
-                link: `/atendimentos` 
-            });
-            console.log(`Notificação de atendimento (amanhã) criada para Dr(a). ${atendimento.advogadoNome}`);
-        }
-        console.log("Verificação de atendimentos concluída.");
-    } catch (error) { console.error("Erro ao verificar atendimentos:", error); }
+            if (!atendimento.advogadoId) {
+                console.warn(`Atendimento ${doc.id} (amanhã) sem advogadoId associado.`);
+                return;
+            }
+             const dataHoraAtendimento = atendimento.data ? atendimento.data.toDate().toLocaleString('pt-BR', { timeZone: timeZone, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : 'Data/Hora não definida';
+
+            notificationPromisesAmanha.push( db.collection("notificacoes").add({
+                usuarioId: atendimento.advogadoId, // Notifica o advogado responsável
+                titulo: "Lembrete: Atendimento Amanhã",
+                mensagem: `Atendimento agendado para amanhã (${dataHoraAtendimento.split(' ')[0]}) com ${atendimento.clienteNome || 'Cliente não especificado'} às ${dataHoraAtendimento.split(' ')[1]}.`,
+                clienteId: atendimento.clienteId || null,
+                clienteNome: atendimento.clienteNome || 'Cliente não especificado',
+                advogadoId: atendimento.advogadoId,
+                advogadoNome: atendimento.advogadoNome || 'Advogado não especificado',
+                horario: atendimento.horario || 'Não definido',
+                data: atendimento.data,
+                tipo: "atendimento_amanha",
+                lida: false,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                link: `/atendimentos`
+            }));
+            notificacoesAmanha++;
+        });
+
+        // Aguarda todas as notificações serem criadas
+        await Promise.all([...notificationPromisesHoje, ...notificationPromisesAmanha]);
+        console.log(`Verificação de atendimentos concluída. ${notificacoesHoje} notificações para hoje, ${notificacoesAmanha} para amanhã.`);
+
+    } catch (error) {
+        console.error("Erro CRÍTICO ao verificar atendimentos:", error);
+    }
+});
+
+
+// --- FUNÇÃO 5: CONCEDER PERFIL DE ADMINISTRADOR (COM LOG DE 'data') ---
+exports.grantAdminRole = functions.https.onCall(async (data, context) => {
+    // A verificação de segurança continua comentada para este teste
+    /*
+    if (!context.auth || context.auth.token.perfil !== 'admin') {
+        throw new functions.https.HttpsError("permission-denied", "Apenas administradores podem executar esta ação.");
+    }
+    */
+
+    console.log("--- grantAdminRole: INICIADA ---");
+
+    // ***** LINHA DE DEPURAÇÃO MAIS IMPORTANTE *****
+    // Mostra exatamente o que foi recebido no parâmetro 'data'
+    console.log("grantAdminRole: Dados recebidos (data):", JSON.stringify(data, null, 2));
+    // ***** FIM DA LINHA DE DEPURAÇÃO *****
+
+    // Tenta extrair o email dos dados recebidos
+    const email = data?.email; // Usa optional chaining (?) para evitar erro
+
+    // Verifica se o email foi extraído corretamente
+    if (!email) {
+        console.error("grantAdminRole: ERRO - E-mail não encontrado no objeto 'data' recebido.");
+        throw new functions.https.HttpsError("invalid-argument", "O e-mail é obrigatório."); // Este é o erro que você está vendo
+    }
+
+    console.log(`grantAdminRole: E-mail extraído: ${email}. Prosseguindo...`);
+
+    try {
+        const user = await admin.auth().getUserByEmail(email);
+        console.log(`grantAdminRole: Usuário encontrado: ${user.uid}`);
+        
+        await admin.auth().setCustomUserClaims(user.uid, { perfil: 'admin' });
+        console.log(`grantAdminRole: Custom claim definida para ${user.uid}`);
+        
+        await admin.firestore().collection("usuarios").doc(user.uid).set({ perfil: 'admin' }, { merge: true });
+        console.log(`grantAdminRole: Documento Firestore atualizado para ${user.uid}`);
+        
+        console.log("--- grantAdminRole: CONCLUÍDA COM SUCESSO ---");
+        return { message: `Sucesso! O usuário ${email} agora é um administrador.` };
+
+    } catch (error) {
+        console.error("--- grantAdminRole: FALHOU ---", error);
+        if (error.code === 'auth/user-not-found') { throw new functions.https.HttpsError("not-found", `Usuário com e-mail ${email} não encontrado.`); }
+        throw new functions.https.HttpsError("internal", "Falha ao conceder permissão. Verifique os logs da função.");
+    }
 });
