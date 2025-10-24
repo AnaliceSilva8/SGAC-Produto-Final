@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { db } from '../../firebase-config/config';
+// --- CORREÇÕES ---
+// Removidas as importações de 'getFunctions' e 'httpsCallable'
+// Adicionada a importação de 'auth' para obter o token do usuário
+import { db, auth } from '../../firebase-config/config';
 import AddUserModal from './AddUserModal';
 import { FaPlus, FaTrash } from 'react-icons/fa';
 import Swal from 'sweetalert2';
@@ -16,6 +18,7 @@ function UsersPage() {
 
     useEffect(() => {
         setLoading(true);
+        // A sua lógica original para buscar apenas usuários ativos foi mantida
         const q = query(collection(db, 'usuarios'), where('status', '==', 'ativo'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const usersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -25,6 +28,7 @@ function UsersPage() {
         return () => unsubscribe();
     }, []);
 
+    // --- FUNÇÃO DE INATIVAÇÃO ATUALIZADA PARA USAR O BACKEND EXPRESS ---
     const confirmAndInactiveUser = (user) => {
         Swal.fire({
             title: 'Inativar Usuário',
@@ -38,9 +42,30 @@ function UsersPage() {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const functions = getFunctions();
-                    const toggleUserStatus = httpsCallable(functions, 'toggleUserStatus');
-                    await toggleUserStatus({ uid: user.id, newStatus: 'inativo' });
+                    const currentUser = auth.currentUser;
+                    if (!currentUser) {
+                        throw new Error("Usuário não autenticado.");
+                    }
+                    
+                    // Pega o token do admin para enviar ao backend
+                    const idToken = await currentUser.getIdToken(true);
+
+                    // Faz a chamada para a nova rota no backend Express
+                    const response = await fetch('http://localhost:5000/api/toggle-user-status', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${idToken}`
+                        },
+                        body: JSON.stringify({ uid: user.id, newStatus: 'inativo' })
+                    });
+
+                    const responseData = await response.json();
+
+                    if (!response.ok) {
+                        // Lança um erro com a mensagem do backend
+                        throw new Error(responseData.message || 'Falha ao inativar usuário.');
+                    }
 
                     Swal.fire({
                         icon: 'success',
@@ -61,6 +86,7 @@ function UsersPage() {
         });
     };
 
+    // --- O RESTO DO SEU COMPONENTE (JSX) ESTÁ EXATAMENTE COMO VOCÊ ENVIOU ---
     return (
         <div className="users-page">
             <div className="page-header">
@@ -84,7 +110,6 @@ function UsersPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {/* A formatação aqui foi ajustada para evitar espaços em branco */}
                             {users.map(user => (
                                 <tr key={user.id}>
                                     <td>{user.nome}</td>

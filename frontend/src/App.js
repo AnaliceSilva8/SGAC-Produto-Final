@@ -10,7 +10,7 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import ClientDetailsPage from './pages/client-details/ClientDetailsPage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import AtendimentosPage from './pages/atendimentos/AtendimentosPage';
-import UsersPage from './pages/users/UsersPage'; // A linha que causa o erro se o arquivo não for encontrado
+import UsersPage from './pages/users/UsersPage.jsx'; 
 
 function App() {
   const [user, loading] = useAuthState(auth);

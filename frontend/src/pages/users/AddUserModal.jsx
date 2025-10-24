@@ -1,15 +1,14 @@
 // frontend/src/pages/users/AddUserModal.jsx
 
 import React, { useState, useEffect } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { getAuth } from "firebase/auth";
 import { IMaskInput } from 'react-imask';
 import Swal from 'sweetalert2';
+
+// --- CORREÇÕES PRINCIPAIS ---
+// Importa apenas a instância 'auth' necessária. 'httpsCallable' e 'functions' foram removidos.
+import { auth } from '../../firebase-config/config';
 import './AddUserModal.css';
-import { functions } from '../../firebase-config/config';
-// --- INÍCIO DA CORREÇÃO ---
-import { jwtDecode } from "jwt-decode"; // <<< ESTA LINHA ESTAVA FALTANDO
-// --- FIM DA CORREÇÃO ---
+
 
 // (A função validaCPF não precisa de alterações)
 function validaCPF(cpf) {
@@ -79,7 +78,7 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
                         let age = today.getFullYear() - dob.getFullYear();
                         const m = today.getMonth() - dob.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-                             age--;
+                            age--;
                         }
                         if (age < 18) {
                             errorMsg = "O usuário deve ter no mínimo 18 anos.";
@@ -115,40 +114,43 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
         setErrors(prev => ({ ...prev, [name]: error }));
     };
 
+    // --- LÓGICA DE SUBMISSÃO TOTALMENTE ATUALIZADA ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         let formIsValid = true; const newErrors = {}; Object.keys(formData).forEach(key => { if (key === 'perfil') return; const error = validateField(key, formData[key]); if (error) { newErrors[key] = error; formIsValid = false; } }); setErrors(newErrors); if (!formIsValid) return;
 
         setIsLoading(true);
         try {
-            console.log("--- INICIANDO SUBMISSÃO ---");
-            const auth = getAuth();
+            console.log("--- INICIANDO SUBMISSÃO (VIA API EXPRESS) ---");
             const currentUser = auth.currentUser;
 
             if (!currentUser) {
-                console.error("ERRO FATAL: auth.currentUser é NULO.");
                 throw new Error("Usuário não autenticado. Faça login novamente.");
             }
-            console.log("Usuário encontrado:", currentUser.email);
 
-            console.log("Forçando atualização do token...");
+            // Pega o token do usuário logado (o admin) para enviar ao backend
             const idToken = await currentUser.getIdToken(true);
-            console.log("Token atualizado OK.");
-
-            const decodedToken = jwtDecode(idToken);
-            console.log("PERMISSÕES NO TOKEN (visto pelo Frontend):", decodedToken);
-
-            if (!decodedToken.perfil || decodedToken.perfil !== 'admin') {
-                console.error("ERRO DE PERMISSÃO (Frontend): O token NÃO contém a claim 'perfil: admin'. Claims:", decodedToken);
-            } else {
-                console.log("SUCESSO (Frontend): Claim 'perfil: admin' encontrada!");
-            }
-
-            const createNewUser = httpsCallable(functions, 'createNewUser');
-            console.log("Chamando Cloud Function 'createNewUser'...");
             
-            await createNewUser(formData);
-            console.log("Cloud Function executada com sucesso.");
+            // Faz a chamada para o seu backend Express
+            const response = await fetch('http://localhost:5000/api/create-user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Envia o token para a verificação de segurança no backend
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await response.json();
+
+            // Verifica se a resposta do backend indica um erro
+            if (!response.ok) {
+                // Lança um erro com a mensagem que veio do backend para ser exibida no Swal
+                throw new Error(result.message || 'Ocorreu um erro desconhecido no servidor.');
+            }
+            
+            console.log("API Express executada com sucesso:", result.message);
 
             await Swal.fire({ icon: 'success', title: 'Sucesso!', text: `Usuário ${formData.nome} cadastrado com sucesso.`, timer: 3000, showConfirmButton: false });
             
@@ -163,6 +165,7 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
         }
     };
 
+
     if (!isOpen) return null;
 
     return (
@@ -173,7 +176,7 @@ function AddUserModal({ isOpen, onClose, onUserAdded }) {
                     <button onClick={onClose} className="close-button">&times;</button>
                 </div>
                 <form onSubmit={handleSubmit} className="modal-form" noValidate>
-                    {/* O resto do seu formulário... */}
+                    {/* O resto do seu formulário (não precisa de alterações) */}
                     <div className="form-row">
                         <div className="form-group">
                             <label htmlFor="nome">Nome Completo</label>

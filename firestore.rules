@@ -2,11 +2,18 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Usuários
+    // --- REGRAS DE USUÁRIOS CORRIGIDAS COM BASE NA SUA OBSERVAÇÃO ---
     match /usuarios/{userId} {
-      allow create, read: if request.auth != null;
-      allow update, delete: if request.auth.uid == userId;
+      // Qualquer usuário autenticado (normal ou admin) pode ver a lista de usuários e
+      // aceder a perfis individuais. Isto corrige o erro "Carregando...".
+      allow list, get: if request.auth != null;
+      
+      // Apenas admins podem criar, atualizar ou apagar usuários.
+      // Isto cria uma camada extra de segurança que corresponde à lógica
+      // que já implementámos no seu backend.
+      allow create, update, delete: if request.auth.token.perfil == 'admin';
     }
+    // --- FIM DA CORREÇÃO ---
 
     // Clientes (pode ser lido/escrito por qualquer usuário autenticado)
     match /clientes/{path=**} {
@@ -18,7 +25,7 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
-    // Notificações (corrigido campo de referência)
+    // Notificações (a sua regra original foi mantida)
     match /notificacoes/{notificationId} {
       allow read, write: if request.auth != null 
                          && request.auth.uid == resource.data.usuarioId;
