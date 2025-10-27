@@ -1,3 +1,5 @@
+// frontend/src/pages/client-details/DocumentsTab.jsx
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { storage, auth, db } from '../../firebase-config/config';
 import { ref, uploadBytes, listAll, getDownloadURL, deleteObject, getMetadata } from 'firebase/storage';
@@ -40,21 +42,24 @@ function DocumentsTab({ client }) {
     fetchUserInfo();
   }, [user]);
 
+  // --- CORREÇÃO 1: A dependência agora é o ID do cliente, que é estável ---
+  const clientId = client?.id;
+
   const fetchFiles = useCallback(async () => {
+    // A verificação agora usa a variável estável 'clientId'
+    if (!clientId) return; 
+
     setFileList([]);
     setIsLoading(true);
     try {
-      if (!client || !client.id) throw new Error("ID do cliente não encontrado.");
-      const folderRef = ref(storage, `clientes/${client.id}`);
+      const folderRef = ref(storage, `clientes/${clientId}`);
       const res = await listAll(folderRef);
       const filesPromises = res.items.map(async (itemRef) => {
         const url = await getDownloadURL(itemRef);
         const metadata = await getMetadata(itemRef);
-        // Evita erro se o nome do arquivo não tiver o prefixo
         const nameParts = metadata.name.split('___');
         const type = nameParts.length > 1 ? nameParts[0].replace(/-/g, ' ') : 'Desconhecido';
         const name = nameParts.length > 1 ? nameParts.slice(1).join('___') : metadata.name;
-
         const responsibleName = metadata.customMetadata?.responsibleUserName || 'Não identificado';
         const responsibleCargo = metadata.customMetadata?.responsibleUserCargo || '';
         const responsibleDisplay = responsibleCargo 
@@ -80,13 +85,13 @@ function DocumentsTab({ client }) {
     } finally {
       setIsLoading(false);
     }
-  }, [client]);
+  // A dependência agora é a variável estável 'clientId'
+  }, [clientId]); 
 
   useEffect(() => {
-    if (client?.id) {
-        fetchFiles();
-    }
-  }, [client, fetchFiles]);
+    fetchFiles();
+  // --- CORREÇÃO 2: A única dependência necessária agora é a função 'fetchFiles' ---
+  }, [fetchFiles]);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
