@@ -1,173 +1,141 @@
-import React, { useEffect, useState } from 'react';
-import { db, auth } from '../../firebase-config/config';
-import { collection, query, where, getDocs, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+// frontend/src/pages/notifications/NotificationsPage.jsx
+
+import React, { useState, useEffect, useCallback, useContext } from 'react'; // NOVO: Adicionado useContext
+import { auth, db } from '../../firebase-config/config'; // NOVO: db ainda é usado para a função de apagar
+import { Timestamp, doc, setDoc } from 'firebase/firestore'; // NOVO: Reduzido o que importamos do firestore
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { FaTrash, FaBirthdayCake, FaBriefcase, FaUserCheck, FaCalendarAlt } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import { AuthContext } from '../../context/AuthContext'; // NOVO: Importe seu contexto que gerencia a unidade atual
 import './NotificationsPage.css';
 
-// Ícone por tipo de notificação
-const getNotificationIcon = (type) => {
-    switch (type) {
-        case 'aniversario_cliente':
-            return <i className="fa-solid fa-cake-candles notification-icon birthday"></i>;
-        case 'aniversario_cadastro':
-            return <i className="fa-solid fa-calendar-day notification-icon register"></i>;
-        case 'atendimento_hoje':
-        case 'atendimento_amanha':
-        case 'audiencia':
-            return <i className="fa-solid fa-calendar-check notification-icon default"></i>;
-        default:
-            return <i className="fa-solid fa-bell notification-icon default"></i>;
-    }
+// Configurações visuais (sem alterações)
+const notificationConfig = {
+    aniversario_cliente: { icon: <FaBirthdayCake />, color: '#3498db' },
+    aniversario_processo: { icon: <FaBriefcase />, color: '#f1c40f' },
+    aniversario_cadastro: { icon: <FaUserCheck />, color: '#2ecc71' },
+    atendimento_hoje: { icon: <FaCalendarAlt />, color: '#e74c3c' },
+    atendimento_amanha: { icon: <FaCalendarAlt />, color: '#e67e22' },
+    default: { icon: '🔔', color: '#95a5a6' }
 };
 
-// Função para calcular idade
-const calcularIdade = (dataNascimento) => {
-    if (!dataNascimento) return '';
-    const hoje = new Date();
-    const nasc = new Date(dataNascimento);
-    let idade = hoje.getFullYear() - nasc.getFullYear();
-    const m = hoje.getMonth() - nasc.getMonth();
-    if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) {
-        idade--;
-    }
-    return idade;
+// ALTERADO: Função de formatação para lidar com a data vinda do backend (string)
+const formatTimestamp = (timestamp) => {
+    let date;
+    if (typeof timestamp === 'string') {
+        date = new Date(timestamp); // Converte a string ISO da API para um objeto Date
+    } else if (timestamp && typeof timestamp.toDate === 'function') {
+        date = timestamp.toDate(); // Mantém compatibilidade com o formato do Firestore
+    } else {
+        return 'Data inválida';
+    }
+    return date.toLocaleString('pt-BR', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
 };
 
 function NotificationsPage() {
-    const [user] = useAuthState(auth);
-    const [notifications, setNotifications] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [user] = useAuthState(auth);
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(true);
+    
+    // NOVO: Acessa a unidade atual do contexto global da sua aplicação
+    const { currentLocation } = useContext(AuthContext);
 
-    const fetchAndMarkNotifications = async () => {
-        if (!user) {
-            setIsLoading(false);
-            return;
-        }
+    // ALTERADO: A lógica de carregamento foi completamente substituída
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            // Só executa se tivermos um usuário e uma unidade selecionada
+            if (!user || !currentLocation) {
+                setNotifications([]);
+                setLoading(false);
+                return;
+            }
 
-        const selectedLocation = localStorage.getItem('selectedLocation');
-        if (!selectedLocation) {
-            setError("Nenhuma unidade de atendimento foi selecionada.");
-            setIsLoading(false);
-            return;
-        }
+            setLoading(true);
+            try {
+                // 1. Pega o token de autenticação do Firebase para autorizar a requisição
+                const token = await user.getIdToken();
 
-        setIsLoading(true);
-        setError('');
-        try {
-            const q = query(
-                collection(db, 'notificacoes'),
-                where('usuarioId', '==', user.uid),
-                where('location', '==', selectedLocation),
-                orderBy('dataCriacao', 'desc')
-            );
+                // 2. Faz a chamada para a API do backend
+                const response = await fetch('http://localhost:5000/api/notificacoes', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        // 3. Envia o cabeçalho com a unidade atual para o backend fazer o filtro!
+                        'X-Current-Location': currentLocation 
+                    }
+                });
 
-            const querySnapshot = await getDocs(q);
-            const notifs = querySnapshot.docs.map(docu => ({ id: docu.id, ...docu.data() }));
-            setNotifications(notifs);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Falha ao buscar notificações.');
+                }
+                
+                // 4. Recebe os dados já filtrados e atualiza o estado
+                const data = await response.json();
+                setNotifications(data);
 
-            // Marca notificações como lidas
-            const unreadNotifs = querySnapshot.docs.filter(d => !d.data().lida);
-            if (unreadNotifs.length > 0) {
-                const batch = [];
-                unreadNotifs.forEach(document => {
-                    const notifRef = doc(db, 'notificacoes', document.id);
-                    batch.push(updateDoc(notifRef, { lida: true }));
-                });
-                await Promise.all(batch);
-            }
-        } catch (err) {
-            console.error("Erro ao buscar notificações:", err);
-            setError("Ocorreu um erro ao carregar as notificações.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+            } catch (error) {
+                console.error("Erro ao buscar notificações via API:", error);
+                setNotifications([]); // Limpa as notificações em caso de erro
+            } finally {
+                setLoading(false);
+            }
+        };
 
-    useEffect(() => {
-        fetchAndMarkNotifications();
-    }, [user]);
+        fetchNotifications();
+        
+        // A busca será refeita sempre que o usuário logar/deslogar ou a unidade mudar
+    }, [user, currentLocation]);
 
-    const handleDelete = async (e, id) => {
-        e.preventDefault();
-        e.stopPropagation();
+    // Função de apagar (sem alterações na lógica principal, mas agora é mais independente)
+    const handleDelete = useCallback(async (notificationId) => {
+        if (!user) return;
+        
+        // Remove a notificação da tela imediatamente
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
 
-        try {
-            await deleteDoc(doc(db, "notificacoes", id));
-            setNotifications(prev => prev.filter(notif => notif.id !== id));
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: 'Notificação excluída',
-                showConfirmButton: false,
-                timer: 2000
-            });
-        } catch (err) {
-            console.error("Erro ao deletar notificação:", err);
-            Swal.fire('Erro!', 'Não foi possível excluir a notificação.', 'error');
-        }
-    };
+        // Envia a atualização para o Firestore em segundo plano
+        try {
+            const statusRef = doc(db, `notificacoes/${notificationId}/statusPorUsuario/${user.uid}`);
+            await setDoc(statusRef, { apagada: true, lida: true }, { merge: true });
+        } catch (error) {
+            console.error("Erro ao apagar notificação no Firestore:", error);
+            // Opcional: Adicionar lógica para reverter a UI se o Firestore falhar
+        }
+    }, [user]);
 
-    if (isLoading) {
-        return <div className="loading-container-notif">Carregando notificações...</div>;
-    }
-
-    return (
-        <div className="notifications-page-container">
-            <h1>Notificações</h1>
-            {error && <p className="error-message">{error}</p>}
-
-            {!error && notifications.length > 0 ? (
-                <div className="notifications-list">
-                    {notifications.map(notif => (
-                        <Link key={notif.id} to={notif.link || '#'} className="notification-item-link">
-                            <div className={`notification-item ${!notif.lida ? 'nao-lida' : ''}`}>
-                                {getNotificationIcon(notif.tipo)}
-                                <div className="notification-content">
-                                    <h3 className="notification-title">{notif.titulo}</h3>
-
-                                    {/* Conteúdo customizado por tipo */}
-                                    {notif.tipo === 'aniversario_cliente' ? (
-                                        <p className="notification-message">
-                                            Hoje é aniversário de <b>{notif.nomeCliente}</b> 🎉 <br />
-                                            Está completando <b>{calcularIdade(notif.dataNascimento)}</b> anos.
-                                        </p>
-                                    ) : notif.tipo === 'atendimento_hoje' || notif.tipo === 'atendimento_amanha' ? (
-                                        <p className="notification-message">
-                                            Você tem um atendimento com <b>{notif.nomeCliente}</b>.
-                                        </p>
-                                    ) : notif.tipo === 'audiencia' ? (
-                                        <p className="notification-message">
-                                            Você tem uma audiência com <b>{notif.nomeCliente}</b>.
-                                        </p>
-                                    ) : (
-                                        <p className="notification-message">{notif.mensagem}</p>
-                                    )}
-
-                                    <span className="notification-time">
-                                        {notif.dataCriacao?.toDate().toLocaleDateString('pt-BR')}
-                                    </span>
-                                </div>
-                                <button className="delete-notification-btn" onClick={(e) => handleDelete(e, notif.id)}>
-                                    <i className="fa-solid fa-times"></i>
-                                </button>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
-            ) : (
-                !isLoading && !error && (
-                    <div className="no-notifications">
-                        <i className="fa-regular fa-bell-slash"></i>
-                        <p>Nenhuma notificação para a unidade de {localStorage.getItem('selectedLocation')}.</p>
-                    </div>
-                )
-            )}
-        </div>
-    );
+    return (
+        <div className="notifications-container">
+            <h1>Notificações</h1>
+            <div className="notifications-list">
+                {loading && <p>Carregando notificações...</p>}
+                {!loading && notifications.length === 0 && <p>Nenhuma notificação nova para a unidade de {currentLocation}.</p>}
+                {!loading && notifications.map(notif => {
+                    const config = notificationConfig[notif.tipo] || notificationConfig.default;
+                    return (
+                        <div key={notif.id} className="notification-card">
+                            <div className="notification-icon" style={{ backgroundColor: config.color }}>
+                                {config.icon}
+                            </div>
+                            <div className="notification-content">
+                                <Link to={notif.link || '#'} className="notification-link">
+                                    <strong>{notif.titulo}</strong>
+                                    <p>{notif.mensagem}</p>
+                                </Link>
+                                <small>{formatTimestamp(notif.timestamp)}</small>
+                            </div>
+                            <button onClick={() => handleDelete(notif.id)} className="delete-button" title="Apagar notificação">
+                                <FaTrash />
+                            </button>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 }
 
 export default NotificationsPage;

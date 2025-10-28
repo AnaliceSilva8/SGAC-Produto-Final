@@ -1,9 +1,8 @@
-// frontend/src/App.js
-
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from './firebase-config/config';
+import { AuthProvider } from './context/AuthContext'; // <--- IMPORTANTE
 import PrivateRoute from './components/PrivateRoute';
 import LoginPage from './pages/login/LoginPage';
 import DashboardPage from './pages/dashboard/DashboardPage';
@@ -25,17 +24,24 @@ function App() {
 
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
+      {/* O AuthProvider deve ficar aqui, por dentro do Router, 
+        mas por fora das Routes, para que todas as rotas 
+        tenham acesso ao contexto (incluindo a currentLocation)
+      */}
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
 
-        <Route element={<PrivateRoute />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/cliente/:id" element={<ClientDetailsPage />} />
-          <Route path="/notificacoes" element={<NotificationsPage />} />
-          <Route path="/atendimentos" element={<AtendimentosPage />} />
-          <Route path="/usuarios" element={<UsersPage />} />
-        </Route>
-      </Routes>
+          {/* Todas as rotas privadas agora são filhas do AuthProvider */}
+          <Route element={<PrivateRoute />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/cliente/:id" element={<ClientDetailsPage />} />
+            <Route path="/notificacoes" element={<NotificationsPage />} />
+            <Route path="/atendimentos" element={<AtendimentosPage />} />
+            <Route path="/usuarios" element={<UsersPage />} />
+          </Route>
+        </Routes>
+      </AuthProvider>
     </Router>
   );
 }

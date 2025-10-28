@@ -2,30 +2,38 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Regras de Usuários (já corrigidas, sem alterações)
+    // Regra de Usuários (Mantida)
     match /usuarios/{userId} {
       allow list, get: if request.auth != null;
       allow create, update, delete: if request.auth.token.perfil == 'admin';
     }
 
-    // --- ESTE BLOCO FOI CORRIGIDO PARA INCLUIR SUB-COLEÇÕES ---
-    // Clientes e TODAS as suas sub-coleções (processos, observações, historico, etc.)
+    // Clientes e TODAS as suas sub-coleções (Mantida)
     match /clientes/{clienteId}/{document=**} {
-      // Qualquer usuário autenticado pode ler e escrever nos documentos de clientes
-      // e em todos os documentos dentro das suas sub-coleções.
       allow read, write: if request.auth != null;
     }
-    // --- FIM DA CORREÇÃO ---
 
-    // Agendamentos (sem alterações)
+    // Agendamentos (Mantida)
     match /agendamentos/{agendamentoId} {
       allow read, write: if request.auth != null;
     }
 
-    // Notificações (sem alterações)
+    // --- REGRA DE NOTIFICAÇÕES CORRIGIDA ---
     match /notificacoes/{notificationId} {
-      allow read, write: if request.auth != null 
-                         && request.auth.uid == resource.data.usuarioId;
+      
+      // Permite que qualquer usuário logado LEIA (liste) as notificações.
+      allow get, list: if request.auth != null;
+
+      // Impede que usuários normais criem, editem ou apaguem a notificação principal.
+      // Apenas o backend (que usa credenciais de admin) pode fazer isso.
+      allow create, update, delete: if false;
+
+      // Regra para a subcoleção de status de cada usuário
+      match /statusPorUsuario/{userId} {
+        // Permite que o usuário leia e escreva (para marcar como lida/apagada)
+        // APENAS no seu próprio documento de status. Isso é seguro.
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
   }
 }
