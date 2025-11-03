@@ -18,7 +18,8 @@ try {
     const serviceAccount = require('./serviceAccountKey.json');
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        storageBucket: "sgac-projetofinal.appspot.com"
+        // --- ★ CORREÇÃO FINAL APLICADA AQUI ★ ---
+        storageBucket: "sgac-projetofinal.firebasestorage.app"
     });
 } catch (error) {
     console.error("Erro ao inicializar o Firebase Admin:", error);
@@ -70,6 +71,12 @@ const checkAuth = async (req, res, next) => {
         return res.status(403).json({ message: 'Token inválido ou expirado.' });
     }
 };
+
+// Função auxiliar para escapar caracteres especiais de RegEx
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& significa a string inteira que casou
+}
+
 
 // --- Rotas de Usuário ---
 app.post('/api/create-user', checkAdmin, async (req, res) => {
@@ -151,16 +158,29 @@ app.post('/api/gerar-contratos', async (req, res) => {
                 continue;
             }
             let htmlContent = fs.readFileSync(templatePath, 'utf8');
+
+            // --- Correção do Replace ---
             Object.keys(templateData).forEach(key => {
                 const value = templateData[key] ?? '';
-                htmlContent = htmlContent.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+                const safeKey = escapeRegExp(key);
+                const regex = new RegExp(`{{${safeKey}}}`, 'g');
+                htmlContent = htmlContent.replace(regex, () => String(value));
             });
+
             await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-            const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '2.5cm', right: '2.5cm', bottom: '2.5cm', left: '2.5cm' } });
+            
+            // 1. page.pdf() retorna um Uint8Array
+            const pdfArray = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '2.5cm', right: '2.5cm', bottom: '2.5cm', left: '2.5cm' } });
+            
+            // 2. Convertemos esse Array para um Buffer
+            const pdfBuffer = Buffer.from(pdfArray); 
+
             const fileName = `${type}_${clientData.NOMECLIENTE.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
             const filePath = `clients/${clientId}/documents/${fileName}`;
             const fileUpload = bucket.file(filePath);
-            await fileUpload.save(pdfBuffer, { metadata: { contentType: 'application/pdf' } });
+            
+            await fileUpload.save(pdfBuffer, { metadata: { contentType: 'application/pdf' } }); 
+            
             generatedFilesInfo.push({ name: fileName, path: filePath, createdAt: new Date() });
         }
         if (generatedFilesInfo.length > 0) {
@@ -185,13 +205,12 @@ app.get('/api/notificacoes', checkAuth, async (req, res) => {
             return res.status(400).json({ message: 'A unidade atual (location) não foi fornecida no cabeçalho X-Current-Location.' });
         }
 
-        // ✅ CORREÇÃO APLICADA AQUI
         const locationQuery = currentLocation.toLowerCase();
         
         console.log(`Buscando notificações para a unidade ${locationQuery}`);
 
         const notificationsSnapshot = await db.collection('notificacoes')
-            .where('location', '==', locationQuery) // Usando a versão em minúsculas
+            .where('location', '==', locationQuery) 
             .orderBy('timestamp', 'desc')
             .limit(50)
             .get();
@@ -213,7 +232,7 @@ app.get('/api/notificacoes', checkAuth, async (req, res) => {
                 id: doc.id,
                 ...doc.data(),
                 lida: statusDoc.exists ? statusDoc.data().lida : false,
-                timestamp: doc.data().timestamp.toDate()
+                timestamp: doc.data().timestamp.toDate() 
             });
         }
 
@@ -241,12 +260,11 @@ async function criarNotificacaoGlobal(location, dadosNotificacao) {
         return;
     }
     
-    // Padronizando para minúsculas ao salvar
     const locationLowerCase = location.toLowerCase();
 
     const notificacaoRef = await db.collection("notificacoes").add({
         ...dadosNotificacao,
-        location: locationLowerCase, // Salva a versão em minúsculas
+        location: locationLowerCase, 
         timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
     console.log(`[SUCESSO] Notificação (${dadosNotificacao.tipo}) criada para location ${locationLowerCase}. ID: ${notificacaoRef.id}`);
@@ -260,13 +278,12 @@ async function criarNotificacaoGlobal(location, dadosNotificacao) {
 }
 
 // --- TAREFA 1: ANIVERSÁRIOS DE CLIENTES ---
-// AVISO: '* * * * *' executa a cada minuto (bom para testes). Mude para '0 6 * * *' para rodar 1x por dia às 6h.
 cron.schedule('0 6 * * *', async () => {
     console.log('--- TAREFA: Verificando Aniversários de Clientes ---');
     try {
         const hoje = new Date(new Date().toLocaleString("en-US", { timeZone: TIMEZONE }));
         const diaHoje = hoje.getDate();
-        const mesHoje = hoje.getMonth(); // Mês em JS é 0-11
+        const mesHoje = hoje.getMonth(); 
         const anoHoje = hoje.getFullYear();
 
         const clientesSnapshot = await db.collection("clientes").get();
@@ -319,14 +336,14 @@ cron.schedule('0 6 * * *', async () => {
                     await criarNotificacaoGlobal(location, {
                         titulo: `🎉 Aniversário de Cadastro`,
                         mensagem: `Hoje faz ${anos} ${anos > 1 ? 'anos' : 'ano'} que ${cliente.NOMECLIENTE || 'sem nome'} se tornou nosso cliente!`,
-                        tipo: "aniversario_cadastro",
+                        tipo: "aniversario_cadastro", 
                         link: `/cliente/${doc.id}`
-                    });
+                    }); 
                 }
             }
         }
     } catch (error) {
-        console.error("ERRO na tarefa de aniversários de cadastro:", error);
+        console.error("ERRO na tarefa de aniversários de cadastro:", error); 
     }
 }, { scheduled: true, timezone: TIMEZONE });
 
@@ -335,7 +352,7 @@ cron.schedule('0 6 * * *', async () => {
     console.log('--- TAREFA: Verificando Atendimentos ---');
     try {
         const agora = new Date(new Date().toLocaleString("en-US", { timeZone: TIMEZONE }));
-        const inicioHoje = new Date(agora); inicioHoje.setHours(0, 0, 0, 0);
+        const inicioHoje = new Date(agora); inicioHoje.setHours(0, 0, 0, 0); 
         const fimHoje = new Date(agora); fimHoje.setHours(23, 59, 59, 999);
         const inicioAmanha = new Date(inicioHoje); inicioAmanha.setDate(inicioHoje.getDate() + 1);
         const fimAmanha = new Date(fimHoje); fimAmanha.setDate(fimHoje.getDate() + 1);
@@ -345,7 +362,7 @@ cron.schedule('0 6 * * *', async () => {
         ];
         for (const q of queries) {
             const snapshot = await db.collection("agendamentos").where('data', '>=', q.start).where('data', '<=', q.end).get();
-            for (const doc of snapshot.docs) {
+            for (const doc of snapshot.docs) { 
                 const atendimento = doc.data();
                 const hora = atendimento.data.toDate().toLocaleTimeString('pt-BR', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit' });
                 const titulo = q.tipo === 'hoje' ? 'Lembrete: Atendimentos de Hoje' : 'Aviso: Atendimentos para Amanhã';
@@ -358,7 +375,7 @@ cron.schedule('0 6 * * *', async () => {
                     link: '/atendimentos'
                 });
             }
-        }
+        } 
     } catch (error) {
         console.error("ERRO na tarefa de verificar atendimentos:", error);
     }
@@ -369,7 +386,7 @@ cron.schedule('0 6 * * *', async () => {
     console.log('--- TAREFA: Verificando Aniversários de Processos ---');
     try {
         const hoje = new Date(new Date().toLocaleString("en-US", { timeZone: TIMEZONE }));
-        const diaHoje = hoje.getDate();
+        const diaHoje = hoje.getDate(); 
 
         const processosSnapshot = await db.collection("processos").get();
         for (const doc of processosSnapshot.docs) {
@@ -388,12 +405,12 @@ cron.schedule('0 6 * * *', async () => {
                     }
                 } catch (e) {
                     console.error(`Erro ao buscar cliente com ID: ${processo.clienteId}`, e);
-                }
+                } 
                 const location = processo.location || processo.LOCATION;
                 await criarNotificacaoGlobal(location, {
                     titulo: `Revisão de Processo`,
                     mensagem: `O processo nº ${processo.numeroProcesso || 'N/A'} do cliente ${nomeDoCliente} completou ${meses} meses hoje.`,
-                    tipo: "aniversario_processo",
+                    tipo: "aniversario_processo", 
                     link: `/cliente/${processo.clienteId}`
                 });
             }
