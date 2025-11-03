@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react'; // --- ALTERAÇÃO: Adicionado 'useContext' e 'useEffect' ---
 import { useNavigate, Link } from 'react-router-dom';
 import { db } from '../../firebase-config/config';
 import { collection, getDocs, query, where } from "firebase/firestore"; 
 import './DashboardPage.css';
 import AddClientModal from '../add-client/AddClientModal';
+// --- ALTERAÇÃO 1: Importar o Contexto de Ajuda ---
+import { useHelp } from '../../contexto/HelpContext';
+// --- FIM DA ALTERAÇÃO ---
 
 const formatDate = (dateString) => {
   if (!dateString || typeof dateString !== 'string') return 'N/A';
@@ -26,6 +29,28 @@ function DashboardPage() {
   const [activeProcessCount, setActiveProcessCount] = useState(0); 
 
   const selectedLocation = localStorage.getItem('selectedLocation');
+
+  // --- ALTERAÇÃO 2: Adicionar este bloco ---
+  const { setHelpContent } = useHelp();
+
+  useEffect(() => {
+      const helpText = `
+          <h2>Ajuda: Dashboard (Início)</h2>
+          <p>Esta é a sua tela principal, onde você pode ver e acessar rapidamente todos os seus clientes.</p>
+          <ul>
+              <li><strong>Barra de Busca:</strong> Permite filtrar clientes por nome, CPF ou data de nascimento.</li>
+              <li><strong>+ Adicionar Cliente:</strong> Abre o formulário para cadastrar um novo cliente no sistema.</li>
+              <li><strong>Lista de Clientes:</strong> Exibe os clientes cadastrados. Clicar no nome de um cliente leva à sua ficha detalhada.</li>
+              <li><strong>Visualizar Processos:</strong> Atalho para ver a aba de processos daquele cliente.</li>
+              <li><strong>Cards no Rodapé:</strong> Mostram um resumo rápido do total de clientes, novos clientes (cadastrados nos últimos 7 dias) e processos em andamento.</li>
+          </ul>
+      `;
+      setHelpContent(helpText);
+
+      // Limpa o conteúdo quando o usuário sair desta página
+      return () => setHelpContent(null);
+  }, [setHelpContent]);
+  // --- FIM DA ALTERAÇÃO ---
 
   const fetchClients = async () => {
     if (!selectedLocation) {
@@ -143,31 +168,36 @@ function DashboardPage() {
 
       <div className="client-list-container">
         {isLoading ? <p>Carregando clientes de {selectedLocation}...</p> : (
-          <ul className="client-list">
-            {filteredClients.map(client => (
-              <li key={client.id} className="client-list-item">
-                <Link to={`/cliente/${client.id}`} className="client-name-link">
-                  {client.NOMECLIENTE || 'N/A'}
-                </Link>
-                <span>{client.CPF || 'N/A'}</span>
-                <span>{formatDate(client.DATANASCIMENTO)}</span>
-                
-                {/* --- BOTÃO ALTERADO AQUI --- */}
-                {/* Isto foi alterado de <button> para <Link>.
-                  Ele navega para a página do cliente e passa o 'state'
-                  para informar à próxima página qual aba abrir.
-                */}
-                <Link 
-                  to={`/cliente/${client.id}`} 
-                  state={{ defaultTab: 'processos' }} 
-                  className="view-process-btn"
-                >
-                  Visualizar Processos
-                </Link>
-                
-              </li>
-            ))}
-          </ul>
+          
+          <>
+            <div className="client-list-header">
+              <span>NOME</span>
+              <span>CPF</span>
+              <span>DATA DE NASCIMENTO</span>
+              <span className="header-actions-cell">AÇÕES</span>
+            </div>
+            
+            <ul className="client-list">
+              {filteredClients.map(client => (
+                <li key={client.id} className="client-list-item">
+                  <Link to={`/cliente/${client.id}`} className="client-name-link">
+                    {client.NOMECLIENTE || 'N/A'}
+                  </Link>
+                  <span>{client.CPF || 'N/A'}</span>
+                  <span>{formatDate(client.DATANASCIMENTO)}</span>
+                  
+                  <Link 
+                    to={`/cliente/${client.id}`} 
+                    state={{ defaultTab: 'processos' }} 
+                    className="view-process-btn"
+                  >
+                    Visualizar Processos
+                  </Link>
+                  
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
       

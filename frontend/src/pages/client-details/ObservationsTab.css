@@ -31,7 +31,6 @@
 
 .observation-textarea {
   flex: 1;
-  /* Altura mínima da caixa de texto foi reduzida */
   min-height: 280px; 
   padding: 0.75rem;
   border: 1px solid #ccc;
@@ -119,6 +118,7 @@
 
 .observations-grid {
   display: grid;
+  /* Este é o grid de 5 colunas para ADMINS */
   grid-template-columns: 40px 120px 100px 1fr auto;
   gap: 0 2rem;
   font-size: 1rem;
@@ -161,3 +161,11 @@
 .observation-responsible-cell {
   justify-content: flex-end;
 }
+
+/* --- ALTERAÇÃO AQUI --- */
+/* Esta regra corrige o grid para não-admins, removendo a primeira coluna */
+.observations-grid.non-admin {
+  /* Define 4 colunas, removendo a de 40px (do checkbox) */
+  grid-template-columns: 120px 100px 1fr auto;
+}
+/* --- FIM DA ALTERAÇÃO --- */

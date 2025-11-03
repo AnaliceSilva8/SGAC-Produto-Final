@@ -5,10 +5,25 @@ import { storage, auth, db } from '../../firebase-config/config';
 import { ref, uploadBytes, listAll, getDownloadURL, deleteObject, getMetadata } from 'firebase/storage';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import Swal from 'sweetalert2';
+import Swal from 'sweetalert2'; // <-- Ainda precisamos do Swal base
 import { logHistoryEvent } from '../../utils/historyLogger';
 import './DocumentsTab.css';
+// --- ALTERAÇÃO 1: Importar o hook de perfil ---
+import { useUserRole } from '../../hooks/useUserRole';
+// --- FIM DA ALTERAÇÃO ---
 
+// --- DEFINIÇÃO DO TOAST ---
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer);
+    toast.addEventListener('mouseleave', Swal.resumeTimer);
+  }
+});
 
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
@@ -29,6 +44,10 @@ function DocumentsTab({ client }) {
   const [user] = useAuthState(auth);
   const [userInfo, setUserInfo] = useState(null);
 
+  // --- ALTERAÇÃO 2: Instanciar o hook ---
+  const { role } = useUserRole();
+  // --- FIM DA ALTERAÇÃO ---
+
   useEffect(() => {
     const fetchUserInfo = async () => {
       if (user) {
@@ -42,11 +61,9 @@ function DocumentsTab({ client }) {
     fetchUserInfo();
   }, [user]);
 
-  // --- CORREÇÃO 1: A dependência agora é o ID do cliente, que é estável ---
   const clientId = client?.id;
 
   const fetchFiles = useCallback(async () => {
-    // A verificação agora usa a variável estável 'clientId'
     if (!clientId) return; 
 
     setFileList([]);
@@ -80,17 +97,15 @@ function DocumentsTab({ client }) {
     } catch (error) {
       console.error("Erro ao buscar documentos:", error);
       if (error.code !== 'storage/object-not-found') {
-        Swal.fire("Erro!", "Falha ao buscar os documentos.", "error");
+        Toast.fire({ icon: 'error', title: 'Falha ao buscar os documentos.' });
       }
     } finally {
       setIsLoading(false);
     }
-  // A dependência agora é a variável estável 'clientId'
   }, [clientId]); 
 
   useEffect(() => {
     fetchFiles();
-  // --- CORREÇÃO 2: A única dependência necessária agora é a função 'fetchFiles' ---
   }, [fetchFiles]);
 
   const handleFileChange = (e) => {
@@ -102,7 +117,10 @@ function DocumentsTab({ client }) {
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!selectedFile || !documentType.trim() || !userInfo) {
-      Swal.fire("Atenção!", "Por favor, preencha o tipo, selecione um arquivo e certifique-se de estar logado.", "warning");
+      Toast.fire({ 
+        icon: 'warning', 
+        title: 'Por favor, preencha o tipo e selecione um arquivo.' 
+      });
       return;
     }
     setIsUploading(true);
@@ -124,17 +142,18 @@ function DocumentsTab({ client }) {
       const acao = `Anexou o documento do tipo '${tipoDocumentoFormatado}' (${selectedFile.name})`;
       await logHistoryEvent(client.id, acao, responsavel);
 
-      Swal.fire('Sucesso!', 'Documento enviado com sucesso!', 'success');
+      Toast.fire({ icon: 'success', title: 'Documento enviado com sucesso!' });
       resetAddForm();
       fetchFiles();
     } catch (error) {
       console.error("Erro ao enviar o documento:", error);
-      Swal.fire("Erro!", "Falha ao enviar o documento.", "error");
+      Toast.fire({ icon: 'error', title: 'Falha ao enviar o documento.' });
     } finally {
       setIsUploading(false);
     }
   };
 
+  // (Esta é a confirmação de exclusão, que DEVE ser um modal)
   const confirmDelete = (file) => {
     Swal.fire({
       title: `Excluir "${file.name}"?`,
@@ -154,7 +173,10 @@ function DocumentsTab({ client }) {
 
   const handleDeleteFile = async (file) => {
     if (!userInfo) {
-        Swal.fire("Erro!", "Não foi possível identificar o usuário para registrar a ação.", "error");
+        Toast.fire({ 
+          icon: 'error', 
+          title: 'Erro de permissão. Faça login novamente.' 
+        });
         return;
     }
     try {
@@ -165,11 +187,11 @@ function DocumentsTab({ client }) {
       const acao = `Excluiu o documento do tipo '${file.type}' (${file.name})`;
       await logHistoryEvent(client.id, acao, responsavel);
 
-      Swal.fire('Excluído!', 'O documento foi excluído com sucesso.', 'success');
+      Toast.fire({ icon: 'success', title: 'Documento excluído com sucesso.' });
       fetchFiles();
     } catch (error) {
       console.error("Erro ao excluir o documento:", error);
-      Swal.fire("Erro!", "Falha ao excluir o documento.", "error");
+      Toast.fire({ icon: 'error', title: 'Falha ao excluir o documento.' });
     }
   };
   
@@ -222,14 +244,19 @@ function DocumentsTab({ client }) {
         </div>
       )}
 
-      <div className="documents-list-table">
+      {/* --- ALTERAÇÃO 3: Classe condicional no grid --- */}
+      <div className={`documents-list-table ${role !== 'admin' ? 'non-admin' : ''}`}>
         <div className="doc-table-header">
           <div className="doc-header-item col-type">Tipo</div>
           <div className="doc-header-item col-name">Nome do Arquivo</div>
           <div className="doc-header-item col-date">Data de Envio</div>
           <div className="doc-header-item col-responsible">Responsável</div>
           <div className="doc-header-item col-actions">Visualizar</div>
-          <div className="doc-header-item col-actions">Excluir</div>
+          
+          {/* --- ALTERAÇÃO 4: Cabeçalho "Excluir" condicional --- */}
+          {role === 'admin' && (
+            <div className="doc-header-item col-actions">Excluir</div>
+          )}
         </div>
         
         {isLoading && <div className="table-message">Carregando documentos...</div>}
@@ -249,11 +276,15 @@ function DocumentsTab({ client }) {
                 <i className="fa-regular fa-eye"></i>
               </a>
             </div>
-            <div className="doc-cell-item col-actions">
-              <button onClick={() => confirmDelete(file)} className="action-icon delete-icon">
-                <i className="fa-regular fa-trash-can"></i>
-              </button>
-            </div>
+            
+            {/* --- ALTERAÇÃO 5: Célula "Excluir" condicional --- */}
+            {role === 'admin' && (
+              <div className="doc-cell-item col-actions">
+                <button onClick={() => confirmDelete(file)} className="action-icon delete-icon">
+                  <i className="fa-regular fa-trash-can"></i>
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>

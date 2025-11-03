@@ -2,26 +2,24 @@
 
 /* --- AJUSTES PARA O SCROLL FIXO --- */
 .page-content-area {
-    flex: 1;
-    display: flex; /* Transforma a área principal em um contêiner flex */
-    flex-direction: column; /* Organiza os filhos em coluna */
-    overflow: hidden; /* Esconde o overflow geral */
-    background-color: white;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: white;
 }
 
 .toolbar {
-  /* A barra de ferramentas terá sua altura natural e não encolherá */
   flex-shrink: 0;
 }
 
 .client-list-container {
-  flex: 1; /* Faz a lista de clientes ocupar todo o espaço vertical disponível */
-  overflow-y: auto; /* Adiciona o scroll APENAS a esta área */
+  flex: 1;
+  overflow-y: auto;
   padding: 20px 30px;
 }
 
 .dashboard-footer {
-  /* O rodapé terá sua altura natural e não encolherá */
   flex-shrink: 0;
 }
 /* --- FIM DOS AJUSTES --- */
@@ -73,9 +71,35 @@
   margin: 0;
 }
 
+/* --- ALTERAÇÃO 1: AJUSTE DAS COLUNAS --- */
+.client-list-header {
+  display: grid;
+  /* Coluna CPF (2ª) aumentada para empurrar a 3ª para a direita */
+  grid-template-columns: 1.3fr 1.2fr 1fr auto;
+  gap: 15px;
+  padding: 8px 20px;
+  align-items: center; 
+  font-weight: 500; 
+  color: #333;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  border-bottom: 2px solid #e0e0e0;
+  margin-bottom: 8px;
+}
+/* --- FIM DA ALTERAÇÃO 1 --- */
+
+
+.header-actions-cell {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+
+/* --- ALTERAÇÃO 2: AJUSTE DAS COLUNAS --- */
 .client-list-item {
   display: grid;
-  grid-template-columns: 2.5fr 1.5fr 1fr auto;
+  /* DEVE SER IDÊNTICO AO CABEÇALHO */
+  grid-template-columns: 1.6fr 1.8fr 1fr auto;
   align-items: center;
   gap: 15px;
   background: rgba(236, 236, 236, 1);
@@ -86,6 +110,8 @@
   font-size: 0.85rem;
   color: #333;
 }
+/* --- FIM DA ALTERAÇÃO 2 --- */
+
 
 .client-name-link {
   text-decoration: none;
@@ -105,6 +131,11 @@
   border-radius: 5px;
   cursor: pointer;
   color: #444;
+  text-decoration: none; 
+}
+
+.view-process-btn:hover {
+  text-decoration: none;
 }
 
 .dashboard-footer {

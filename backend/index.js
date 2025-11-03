@@ -261,11 +261,7 @@ async function criarNotificacaoGlobal(location, dadosNotificacao) {
 
 // --- TAREFA 1: ANIVERSÁRIOS DE CLIENTES ---
 // AVISO: '* * * * *' executa a cada minuto (bom para testes). Mude para '0 6 * * *' para rodar 1x por dia às 6h.
-<<<<<<< HEAD
-cron.schedule('* 6 * * *', async () => {
-=======
-cron.schedule('* * * * *', async () => {
->>>>>>> 3ec3b952b1003c821ae81c589e51aa075f38b2eb
+cron.schedule('0 6 * * *', async () => {
     console.log('--- TAREFA: Verificando Aniversários de Clientes ---');
     try {
         const hoje = new Date(new Date().toLocaleString("en-US", { timeZone: TIMEZONE }));

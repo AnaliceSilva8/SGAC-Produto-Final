@@ -6,6 +6,20 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import Swal from 'sweetalert2';
 import './ObservationsTab.css';
 import { logHistoryEvent } from '../../utils/historyLogger';
+import { useUserRole } from '../../hooks/useUserRole';
+
+// --- DEFINIÇÃO DO TOAST ---
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer);
+    toast.addEventListener('mouseleave', Swal.resumeTimer);
+  }
+});
 
 const suggestions = [
   'Liguei para o cliente e pedi os seguintes documentos:',
@@ -22,6 +36,7 @@ function ObservationsTab({ client }) {
   const [isLoading, setIsLoading] = useState(true);
   const [userInfo, setUserInfo] = useState(null);
   const [selectedObservations, setSelectedObservations] = useState([]);
+  const { role } = useUserRole();
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -45,11 +60,7 @@ function ObservationsTab({ client }) {
 
     setIsLoading(true);
 
-    // --- CORREÇÃO AQUI ---
-    // 1. Crie a referência para a SUBCOLEÇÃO DENTRO do cliente específico
     const observationsRef = collection(db, 'clientes', client.id, 'observacoes');
-
-    // 2. A query agora é feita na subcoleção e não precisa mais do 'where'
     const q = query(observationsRef, orderBy('timestamp', 'desc'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -71,19 +82,19 @@ function ObservationsTab({ client }) {
 
   const handleAddObservation = async () => {
     if (!observationText.trim() || !userInfo || !client?.id) {
-        Swal.fire('Atenção!', 'Digite uma observação e certifique-se de que um cliente está selecionado.', 'warning');
+        Toast.fire({
+          icon: 'warning', 
+          title: 'Digite uma observação para salvar.'
+        });
         return;
     }
 
     try {
       const responsibleName = `${userInfo.cargo.toUpperCase()}: ${userInfo.nome.toUpperCase()}`;
       
-      // --- CORREÇÃO AQUI ---
-      // 3. Adicione o documento na SUBCOLEÇÃO correta
       const observationsRef = collection(db, 'clientes', client.id, 'observacoes');
       
       await addDoc(observationsRef, {
-        // Não precisamos mais salvar o 'clientId' aqui
         descricao: observationText,
         responsavel: responsibleName,
         timestamp: serverTimestamp(),
@@ -94,22 +105,21 @@ function ObservationsTab({ client }) {
       await logHistoryEvent(client.id, `Adicionou a observação: "${observationText}"`, responsavelLog);
 
       setObservationText('');
-      Swal.fire({
-        icon: 'success', title: 'Observação adicionada!', toast: true,
-        position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true,
+      
+      Toast.fire({
+        icon: 'success', 
+        title: 'Observação adicionada!'
       });
 
     } catch (error) {
       console.error("Erro ao adicionar observação:", error);
-      Swal.fire('Erro!', 'Não foi possível salvar a observação.', 'error');
+      Toast.fire({ icon: 'error', title: 'Não foi possível salvar a observação.' });
     }
   };
   
   const handleDeleteObservations = async () => {
     if (!client?.id) return;
     try {
-      // --- CORREÇÃO AQUI ---
-      // 4. As promessas de exclusão devem apontar para os documentos na SUBCOLEÇÃO
       const deletePromises = selectedObservations.map(obsId => 
         deleteDoc(doc(db, 'clientes', client.id, 'observacoes', obsId))
       );
@@ -118,12 +128,15 @@ function ObservationsTab({ client }) {
       const responsavelLog = userInfo.nome || user.email;
       await logHistoryEvent(client.id, `Excluiu ${selectedObservations.length} observação(ões)`, responsavelLog);
 
-      Swal.fire('Excluído!', `A(s) ${selectedObservations.length} observação(ões) foram excluídas.`, 'success');
+      Toast.fire({
+        icon: 'success',
+        title: `A(s) ${selectedObservations.length} observação(ões) foram excluídas.`
+      });
       setSelectedObservations([]);
 
     } catch (error) {
       console.error("Erro ao excluir observações:", error);
-      Swal.fire('Erro!', 'Falha ao excluir a(s) observação(ões).', 'error');
+      Toast.fire({ icon: 'error', title: 'Falha ao excluir a(s) observação(ões).' });
     }
   };
 
@@ -133,6 +146,7 @@ function ObservationsTab({ client }) {
     );
   };
 
+  // Esta é a confirmação de exclusão (DEVE ser um modal)
   const confirmDelete = () => {
     Swal.fire({
       title: `Excluir ${selectedObservations.length} observação(ões)?`,
@@ -170,22 +184,34 @@ function ObservationsTab({ client }) {
       </div>
       <div className="history-section">
         <h4>Histórico de observações</h4>
-        <div className="observations-grid">
-          <div className="observation-header select-header"></div>
+        {/* --- ALTERAÇÃO: Adiciona classe condicional ao grid --- */}
+        <div className={`observations-grid ${role !== 'admin' ? 'non-admin' : ''}`}>
+          
+          {/* --- ALTERAÇÃO: Cabeçalho do checkbox condicional --- */}
+          {role === 'admin' && (
+            <div className="observation-header select-header"></div>
+          )}
+
           <div className="observation-header">Data</div>
           <div className="observation-header">Horário</div>
           <div className="observation-header">Descrição</div>
           <div className="observation-header observation-responsible-header">Responsável</div>
+          
           {isLoading ? (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem' }}>Carregando...</div>
           ) : (
             observations.map(obs => (
               <React.Fragment key={obs.id}>
-                <div className="observation-cell cell-select">
-                  <input type="checkbox" className="observation-checkbox"
-                    checked={selectedObservations.includes(obs.id)}
-                    onChange={() => handleSelectObservation(obs.id)} />
-                </div>
+                
+                {/* --- ALTERAÇÃO: Célula do checkbox condicional --- */}
+                {role === 'admin' && (
+                  <div className="observation-cell cell-select">
+                    <input type="checkbox" className="observation-checkbox"
+                      checked={selectedObservations.includes(obs.id)}
+                      onChange={() => handleSelectObservation(obs.id)} />
+                  </div>
+                )}
+                
                 <div className="observation-cell">{obs.timestamp?.toLocaleDateString('pt-BR')}</div>
                 <div className="observation-cell">{obs.timestamp?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
                 <div className="observation-cell">{obs.descricao}</div>
@@ -194,7 +220,9 @@ function ObservationsTab({ client }) {
             ))
           )}
         </div>
-        {selectedObservations.length > 0 && (
+        
+        {/* --- ALTERAÇÃO: Botão de excluir condicional --- */}
+        {role === 'admin' && selectedObservations.length > 0 && (
           <button onClick={confirmDelete} className="btn-delete-observation">
             Excluir Observação
           </button>

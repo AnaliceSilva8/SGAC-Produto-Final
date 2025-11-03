@@ -12,6 +12,20 @@ import './ProcessosTab.css';
 import AddProcessoModal from './AddProcessoModal';
 import DetalhesDoProcesso from './DetalhesDoProcesso';
 
+// --- ALTERAÇÃO 1: DEFINIÇÃO DO TOAST ---
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer);
+    toast.addEventListener('mouseleave', Swal.resumeTimer);
+  }
+});
+// --- FIM DA ALTERAÇÃO 1 ---
+
 // Componente StatusBadge (sem alterações)
 const StatusBadge = ({ status }) => {
     // ... (código igual)
@@ -24,25 +38,22 @@ function ProcessosTab({ client }) {
     const [loading, setLoading] = useState(true);
     const [selectedProcesso, setSelectedProcesso] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    // --- NOVO: Obter perfil do usuário e informações ---
     const { role } = useUserRole();
     const [user] = useAuthState(auth);
     const [userInfo, setUserInfo] = useState(null);
 
-     // --- NOVO: Buscar informações do usuário para log ---
      const fetchUserInfo = useCallback(async () => {
-        if (user) {
-            const userDocRef = doc(db, 'usuarios', user.uid);
-            const userDoc = await getDoc(userDocRef);
-            if (userDoc.exists()) {
-                setUserInfo(userDoc.data());
-            } else {
-                // Fallback caso o documento do usuário não exista na coleção 'usuarios'
-                setUserInfo({ nome: user.email }); // Usar email como fallback
-            }
-        } else {
-            setUserInfo(null);
-        }
+         if (user) {
+             const userDocRef = doc(db, 'usuarios', user.uid);
+             const userDoc = await getDoc(userDocRef);
+             if (userDoc.exists()) {
+                 setUserInfo(userDoc.data());
+             } else {
+                 setUserInfo({ nome: user.email }); // Usar email como fallback
+             }
+         } else {
+             setUserInfo(null);
+         }
     }, [user]);
 
     useEffect(() => {
@@ -59,15 +70,16 @@ function ProcessosTab({ client }) {
         setIsModalOpen(false);
     };
 
-    // --- NOVO: Função para excluir processo ---
     const handleDeleteProcesso = (processoToDelete, event) => {
-        event.stopPropagation(); // Impede que o clique na lixeira abra os detalhes
+        event.stopPropagation(); 
 
         if (!userInfo) {
-             Swal.fire('Erro!', 'Não foi possível identificar o usuário. Tente novamente.', 'error');
-             return;
+            // --- ALTERAÇÃO 2: Erro (agora é toast) ---
+            Toast.fire({ icon: 'error', title: 'Não foi possível identificar o usuário. Tente novamente.' });
+            return;
         }
 
+        // --- NENHUMA ALTERAÇÃO AQUI (Modal de confirmação está correto) ---
         Swal.fire({
             title: `Excluir Processo?`,
             html: `Tem certeza que deseja excluir o processo <strong>${processoToDelete.ESPECIE || 'N/A'}</strong>?<br/>Número: ${processoToDelete.NUMERO_PROCESSO || 'Adm.'}<br/>Esta ação não pode ser desfeita!`,
@@ -83,27 +95,26 @@ function ProcessosTab({ client }) {
                 try {
                     await deleteDoc(processoRef);
 
-                    // Registrar no histórico
-                    const responsavelLog = userInfo.nome || user.email; // Usa nome ou email
+                    const responsavelLog = userInfo.nome || user.email; 
                     await logHistoryEvent(
                         client.id,
                         `Excluiu o processo: ${processoToDelete.ESPECIE || 'N/A'} (${processoToDelete.NUMERO_PROCESSO || 'Adm.'})`,
                         responsavelLog
                     );
 
-                    Swal.fire(
-                        'Excluído!',
-                        'O processo foi excluído com sucesso.',
-                        'success'
-                    );
-                    // A lista será atualizada automaticamente pelo onSnapshot
+                    // --- ALTERAÇÃO 3: Sucesso (agora é toast) ---
+                    Toast.fire({
+                        icon: 'success',
+                        title: 'O processo foi excluído com sucesso.'
+                    });
+                    
                 } catch (error) {
                     console.error("Erro ao excluir processo:", error);
-                    Swal.fire(
-                        'Erro!',
-                        'Não foi possível excluir o processo.',
-                        'error'
-                    );
+                    // --- ALTERAÇÃO 4: Erro (agora é toast) ---
+                    Toast.fire({
+                        icon: 'error',
+                        title: 'Não foi possível excluir o processo.'
+                    });
                 }
             }
         });
@@ -114,19 +125,16 @@ function ProcessosTab({ client }) {
         return <p>A carregar processos...</p>;
     }
 
-    // Se um processo está selecionado, mostra os detalhes (sem alterações aqui)
     if (selectedProcesso) {
         return (
             <DetalhesDoProcesso
                 processo={selectedProcesso}
                 client={client}
                 onBack={() => setSelectedProcesso(null)}
-                // onProcessoUpdate não é mais necessário aqui pois onSnapshot atualiza a lista
             />
         );
     }
 
-    // Listagem principal de processos
     return (
         <div className="processos-tab-container">
             <div className="processos-header">
@@ -141,9 +149,7 @@ function ProcessosTab({ client }) {
             ) : (
                 <ul className="processos-list">
                     {processos.map((processo) => (
-                        // --- ALTERADO: Adicionado container extra e botão de exclusão ---
                         <li key={processo.id} className="processo-list-item-wrapper">
-                            {/* O clique neste div interno ainda abre os detalhes */}
                             <div className="processo-list-item-content" onClick={() => setSelectedProcesso(processo)}>
                                 <div className="processo-info">
                                     <span className="processo-numero">{processo.ESPECIE || 'Tipo não informado'}</span>
@@ -151,7 +157,6 @@ function ProcessosTab({ client }) {
                                 </div>
                                 <StatusBadge status={processo.STATUS || 'Status N/A'} />
                             </div>
-                            {/* Botão de exclusão visível apenas para admins */}
                             {role === 'admin' && (
                                 <button
                                     className="processo-delete-btn"
@@ -168,7 +173,6 @@ function ProcessosTab({ client }) {
 
             {isModalOpen && (
                 <AddProcessoModal
-                    // isOpen foi removido da prop, não era usado
                     client={client}
                     onClose={() => setIsModalOpen(false)}
                     onProcessoAdded={handleProcessoAdded}

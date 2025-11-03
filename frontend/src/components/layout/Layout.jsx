@@ -1,15 +1,18 @@
-// frontend/src/components/layout/Layout.jsx
-
-import React from 'react';
+import React, { useContext } from 'react'; // --- ALTERAÇÃO: Importado useContext ---
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { useCollection } from 'react-firebase-hooks/firestore';
 import { getFirestore, collection, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { auth as firebaseAuth } from '../../firebase-config/config';
-import { useUserRole } from '../../hooks/useUserRole'; // Importando o hook de perfil
+import { useUserRole } from '../../hooks/useUserRole'; 
 import logo from '../../assets/logo.png';
 import './Layout.css';
+
+// --- ALTERAÇÃO 1: Importar o useHelp e o ícone de Ajuda ---
+import { useHelp } from '../../contexto/HelpContext'; 
+import { FaQuestionCircle } from 'react-icons/fa';
+// --- FIM DA ALTERAÇÃO ---
 
 
 function Layout({ children }) {
@@ -18,7 +21,10 @@ function Layout({ children }) {
     const db = getFirestore();
     const auth = getAuth();
     const currentUser = auth.currentUser;
-    const { role } = useUserRole(); // Usando o hook para obter o perfil
+    const { role } = useUserRole(); 
+
+    // --- ALTERAÇÃO 2: Pegar a função para abrir o modal ---
+    const { setIsHelpModalOpen } = useHelp();
 
     const selectedLocation = localStorage.getItem('selectedLocation');
 
@@ -40,6 +46,13 @@ function Layout({ children }) {
             navigate('/login');
         }).catch(console.error);
     };
+
+    // --- ALTERAÇÃO 3: Criar a função que abre o modal ---
+    const handleHelpClick = (e) => {
+        e.preventDefault(); // Impede o link de navegar
+        setIsHelpModalOpen(true); // Abre o modal de ajuda
+    };
+    // --- FIM DA ALTERAÇÃO ---
 
     return (
         <div className="layout-container">
@@ -69,7 +82,6 @@ function Layout({ children }) {
                             </li>
                         </Link>
                         
-                        {/* Link de "Usuários" visível apenas para administradores */}
                         {role === 'admin' && (
                             <Link to="/usuarios" className="sidebar-link">
                                 <li className={location.pathname === '/usuarios' ? 'active' : ''}>
@@ -81,9 +93,11 @@ function Layout({ children }) {
                     </ul>
                 </nav>
                 <div className="sidebar-footer">
-                    <Link to="#" className="sidebar-link">
-                        <span>?</span> Ajuda
+                    {/* --- ALTERAÇÃO 4: Link de Ajuda atualizado com ícone e onClick --- */}
+                    <Link to="#" className="sidebar-link nav-link-ajuda" onClick={handleHelpClick}>
+                        <FaQuestionCircle /> <span>Ajuda</span>
                     </Link>
+                    {/* --- FIM DA ALTERAÇÃO --- */}
                 </div>
             </aside>
             

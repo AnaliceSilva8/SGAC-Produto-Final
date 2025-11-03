@@ -7,6 +7,20 @@ import { IMaskInput } from 'react-imask';
 import { logHistoryEvent } from '../../../utils/historyLogger';
 import './AddProcessoModal.css';
 
+// --- ALTERAÇÃO 1: DEFINIÇÃO DO TOAST ---
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer);
+    toast.addEventListener('mouseleave', Swal.resumeTimer);
+  }
+});
+// --- FIM DA ALTERAÇÃO 1 ---
+
 function AddProcessoModal({ client, onClose, onProcessoAdded }) {
     const initialState = { /* ... (igual) ... */ numeroProcesso: '', tipoBeneficio: '', status: 'Ativo', nit: client?.NIT || '', nb: '', dataInicio: '', faseAtual: '', poloAtivo: client?.NOMECLIENTE || '', poloPassivo: 'INSS', };
     const [formData, setFormData] = useState(initialState);
@@ -23,9 +37,52 @@ function AddProcessoModal({ client, onClose, onProcessoAdded }) {
     const handleMaskedInputChange = (value, name) => { setFormData(prevState => ({ ...prevState, [name]: value })); };
 
     // handleSubmit - Sem alterações na lógica, apenas na formatação da data
-    const handleSubmit = async (e) => { e.preventDefault(); if (!formData.tipoBeneficio || !formData.dataInicio) { Swal.fire('Atenção!', 'Tipo de Benefício e Data de Início são obrigatórios.', 'warning'); return; } if (!client?.id || !userInfo) { Swal.fire('Erro!', 'Cliente ou usuário não identificado.', 'error'); return; } setIsSaving(true); try { const processosRef = collection(db, 'clientes', client.id, 'processos'); const dataInicioDate = new Date(formData.dataInicio + 'T12:00:00.000Z'); const dataInicioTimestamp = Timestamp.fromDate(dataInicioDate); await addDoc(processosRef, { ESPECIE: formData.tipoBeneficio, NUMERO_PROCESSO: formData.numeroProcesso, STATUS: formData.status, NIT: formData.nit, NB: formData.nb, DATA_ENTRADA: dataInicioTimestamp, FASE_ATUAL: formData.faseAtual, POLO_ATIVO: formData.poloAtivo, POLO_PASSIVO: formData.poloPassivo, DATA_CADASTRO: serverTimestamp(), }); const responsibleLog = userInfo.nome || user.email; await logHistoryEvent(client.id, `Adicionou o processo: ${formData.tipoBeneficio}`, responsibleLog); Swal.fire('Sucesso!', 'Processo adicionado!', 'success'); onProcessoAdded(); onClose(); } catch (error) { console.error("Erro:", error); Swal.fire('Erro!', 'Não foi possível adicionar.', 'error'); } finally { setIsSaving(false); } };
+    const handleSubmit = async (e) => { 
+        e.preventDefault(); 
+        if (!formData.tipoBeneficio || !formData.dataInicio) { 
+            // --- ALTERAÇÃO 2: Aviso (agora é toast) ---
+            Toast.fire({ icon: 'warning', title: 'Tipo de Benefício e Data de Início são obrigatórios.' }); 
+            return; 
+        } 
+        if (!client?.id || !userInfo) { 
+            // --- ALTERAÇÃO 3: Erro (agora é toast) ---
+            Toast.fire({ icon: 'error', title: 'Cliente ou usuário não identificado.' }); 
+            return; 
+        } 
+        setIsSaving(true); 
+        try { 
+            const processosRef = collection(db, 'clientes', client.id, 'processos'); 
+            const dataInicioDate = new Date(formData.dataInicio + 'T12:00:00.000Z'); 
+            const dataInicioTimestamp = Timestamp.fromDate(dataInicioDate); 
+            await addDoc(processosRef, { 
+                ESPECIE: formData.tipoBeneficio, 
+                NUMERO_PROCESSO: formData.numeroProcesso, 
+                STATUS: formData.status, 
+                NIT: formData.nit, 
+                NB: formData.nb, 
+                DATA_ENTRADA: dataInicioTimestamp, 
+                FASE_ATUAL: formData.faseAtual, 
+                POLO_ATIVO: formData.poloAtivo, 
+                POLO_PASSIVO: formData.poloPassivo, 
+                DATA_CADASTRO: serverTimestamp(), 
+            }); 
+            const responsibleLog = userInfo.nome || user.email; 
+            await logHistoryEvent(client.id, `Adicionou o processo: ${formData.tipoBeneficio}`, responsibleLog); 
+            
+            // --- ALTERAÇÃO 4: Sucesso (agora é toast) ---
+            Toast.fire({ icon: 'success', title: 'Processo adicionado!' }); 
+            
+            onProcessoAdded(); 
+            onClose(); 
+        } catch (error) { 
+            console.error("Erro:", error); 
+            // --- ALTERAÇÃO 5: Erro (agora é toast) ---
+            Toast.fire({ icon: 'error', title: 'Não foi possível adicionar o processo.' }); 
+        } finally { 
+            setIsSaving(false); 
+        } 
+    };
 
-    // --- ALTERADO: JSX com asteriscos ---
     return (
         <div className="modal-overlay">
             <div className="modal-content">
@@ -37,7 +94,6 @@ function AddProcessoModal({ client, onClose, onProcessoAdded }) {
                     <div className="form-grid">
 
                         <div className="form-group full-width">
-                            {/* --- ALTERADO: Adicionado asterisco --- */}
                             <label htmlFor="tipoBeneficio">Tipo de Benefício / Ação <span style={{ color: 'red' }}>*</span></label>
                             <select id="tipoBeneficio" name="tipoBeneficio" value={formData.tipoBeneficio} onChange={handleInputChange} required >
                                 <option value="">Selecione o tipo...</option>
@@ -59,12 +115,10 @@ function AddProcessoModal({ client, onClose, onProcessoAdded }) {
                             <IMaskInput mask="0000000-00.0000.0.00.0000" id="numeroProcesso" name="numeroProcesso" value={formData.numeroProcesso} onAccept={(val) => handleMaskedInputChange(val, 'numeroProcesso')} placeholder='Opcional (adm.)'/>
                         </div>
                         <div className="form-group">
-                             {/* --- ALTERADO: Adicionado asterisco --- */}
                             <label htmlFor="dataInicio">Data de Início (DER) <span style={{ color: 'red' }}>*</span></label>
                             <input type="date" id="dataInicio" name="dataInicio" value={formData.dataInicio} onChange={handleInputChange} required />
                         </div>
 
-                        {/* --- Campos restantes (não obrigatórios) - sem asterisco --- */}
                         <div className="form-group">
                             <label htmlFor="nit">NIT / PIS / PASEP</label>
                             <input type="text" id="nit" name="nit" value={formData.nit} onChange={handleInputChange} />
@@ -98,7 +152,6 @@ function AddProcessoModal({ client, onClose, onProcessoAdded }) {
                             <input type="text" id="poloPassivo" name="poloPassivo" value={formData.poloPassivo} onChange={handleInputChange} />
                         </div>
                     </div>
-                    {/* Botões - Sem alterações */}
                     <div className="modal-footer"> <button type="button" className="cancel-btn" onClick={onClose} disabled={isSaving}>Cancelar</button> <button type="submit" className="save-btn" disabled={isSaving}> {isSaving ? 'Salvando...' : 'Salvar Processo'} </button> </div>
                 </form>
             </div>

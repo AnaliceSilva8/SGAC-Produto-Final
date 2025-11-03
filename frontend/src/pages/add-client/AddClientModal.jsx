@@ -3,13 +3,28 @@ import { db, auth } from '../../firebase-config/config';
 import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { IMaskInput } from 'react-imask';
-import SuccessModal from '../../components/modals/success/SuccessModal';
+// --- ALTERAÇÃO 1: Remover o SuccessModal e importar o Swal ---
+// import SuccessModal from '../../components/modals/success/SuccessModal';
+import Swal from 'sweetalert2'; 
 import { logHistoryEvent } from '../../utils/historyLogger';
 import './AddClientModal.css';
 
+// --- ALTERAÇÃO 2: DEFINIÇÃO DO TOAST ---
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer);
+    toast.addEventListener('mouseleave', Swal.resumeTimer);
+  }
+});
+// --- FIM DA ALTERAÇÃO 2 ---
+
 
 function isValidCPF(cpf) { /* ...código igual... */ if (typeof cpf !== 'string') return false; cpf = cpf.replace(/[^\d]+/g, ''); if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false; cpf = cpf.split('').map(el => +el); const rest = (count) => (cpf.slice(0, count-12).reduce((soma, el, index) => soma + el * (count - index), 0) * 10) % 11 % 10; return rest(10) === cpf[9] && rest(11) === cpf[10]; }
-
 const profissoesComuns = [ /* ...lista igual... */ "Advogado(a)", "Agricultor(a)", "Aposentado(a)", "Autônomo(a)", "Auxiliar Administrativo", "Bóia-fria", "Caixa", "Caseiro(a)", "Comerciante", "Costureira", "Cozinheiro(a)", "Diarista", "Doméstica", "Dona de Casa", "Eletricista", "Empresário(a)", "Enfermeiro(a)", "Estudante", "Funcionário(a) Público(a)", "Garçom / Garçonete", "Gari", "Lavrador(a)", "Manicure / Pedicure", "Mecânico(a)", "Médico(a)", "Motorista", "Operador(a) de Máquinas", "Padeiro(a)", "Pedreiro(a)", "Pensionista", "Pescador(a)", "Professor(a)", "Serviços Gerais", "Técnico(a) em Enfermagem", "Tratorista", "Vendedor(a)", "Zelador(a)", ].sort();
 
 
@@ -18,7 +33,8 @@ function AddClientModal({ onClose, onClientAdded }) {
   const [formData, setFormData] = useState({ NOMECLIENTE: '', CPF: '', DATANASCIMENTO: '', IDADE: '', SEXO: '', TELEFONE: '', EMAIL: '', CIDADE: '', ESTADO: '', CEP: '', RUA: '', NUMERO: '', BAIRRO: '', COMPLEMENTO: '', ESTADOCIVIL: '', RG: '', PROFISSAO: '', ESCOLARIDADE: '', CNH: '', CTPS: '', NIT: '', SENHA_GOV: '' });
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  // --- ALTERAÇÃO 3: Remover o estado do modal de sucesso ---
+  // const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [user] = useAuthState(auth);
   const [userInfo, setUserInfo] = useState(null);
   const [showOutraProfissao, setShowOutraProfissao] = useState(false);
@@ -36,11 +52,53 @@ function AddClientModal({ onClose, onClientAdded }) {
   // validateForm - Sem alterações
   const validateForm = () => { const newErrors = {}; if (!formData.DATANASCIMENTO) { newErrors.DATANASCIMENTO = "Data de nascimento é obrigatória."; } else { const birthDate = new Date(formData.DATANASCIMENTO); const today = new Date(); today.setHours(0, 0, 0, 0); if (birthDate > today) { newErrors.DATANASCIMENTO = "Data não pode ser no futuro."; } } if (formData.CPF && !isValidCPF(formData.CPF)) { newErrors.CPF = "CPF inválido."; } setErrors(newErrors); return Object.keys(newErrors).length === 0; };
 
-  // handleSubmit - Sem alterações
-  const handleSubmit = async (e) => { e.preventDefault(); if (!validateForm()) return; if (!formData.NOMECLIENTE || !formData.CPF) { alert("Nome e CPF são obrigatórios."); return; } setIsSaving(true); try { const clientsRef = collection(db, 'clientes'); const q = query(clientsRef, where("CPF", "==", formData.CPF)); const querySnapshot = await getDocs(q); if (!querySnapshot.empty) { alert("Erro: CPF já cadastrado."); setIsSaving(false); return; } const docRef = await addDoc(collection(db, 'clientes'), { ...formData, LOCATION: selectedLocation, DATAADC: serverTimestamp() }); if(userInfo) { await logHistoryEvent(docRef.id, 'Cliente Cadastrado', userInfo.nome || user.email); } setShowSuccessModal(true); } catch (error) { console.error("Erro:", error); alert("Falha ao adicionar cliente."); } finally { setIsSaving(false); } };
-  const handleSuccessModalClose = () => { setShowSuccessModal(false); onClientAdded(); onClose(); };
+  // handleSubmit - ALTERADO
+  const handleSubmit = async (e) => { 
+    e.preventDefault(); 
+    if (!validateForm()) return; 
+    if (!formData.NOMECLIENTE || !formData.CPF) { 
+      // --- ALTERAÇÃO 4: Substituir alert() por Toast ---
+      Toast.fire({ icon: 'warning', title: 'Nome e CPF são obrigatórios.' }); 
+      return; 
+    } 
+    setIsSaving(true); 
+    try { 
+      const clientsRef = collection(db, 'clientes'); 
+      const q = query(clientsRef, where("CPF", "==", formData.CPF)); 
+      const querySnapshot = await getDocs(q); 
+      if (!querySnapshot.empty) { 
+        // --- ALTERAÇÃO 5: Substituir alert() por Toast ---
+        Toast.fire({ icon: 'error', title: 'Erro: CPF já cadastrado.' }); 
+        setIsSaving(false); 
+        return; 
+      } 
+      const docRef = await addDoc(collection(db, 'clientes'), { 
+        ...formData, 
+        LOCATION: selectedLocation, 
+        DATAADC: serverTimestamp() 
+      }); 
+      
+      if(userInfo) { 
+        await logHistoryEvent(docRef.id, 'Cliente Cadastrado', userInfo.nome || user.email); 
+      } 
+      
+      // --- ALTERAÇÃO 6: Substituir setShowSuccessModal(true) por Toast ---
+      Toast.fire({ icon: 'success', title: 'Cliente adicionado com sucesso!' });
+      onClientAdded(); // Chamar as funções de callback aqui
+      onClose();       //
+      
+    } catch (error) { 
+      console.error("Erro:", error); 
+      // --- ALTERAÇÃO 7: Substituir alert() por Toast ---
+      Toast.fire({ icon: 'error', title: 'Falha ao adicionar cliente.' }); 
+    } finally { 
+      setIsSaving(false); 
+    } 
+  };
+  
+  // --- ALTERAÇÃO 8: Remover handleSuccessModalClose ---
+  // const handleSuccessModalClose = () => { ... };
 
-  // --- ALTERADO: JSX com asteriscos nos labels ---
   return (
     <>
       <div className="modal-overlay" onClick={onClose}>
@@ -50,12 +108,10 @@ function AddClientModal({ onClose, onClientAdded }) {
             <div className="form-grid">
 
               <div className="input-group full-width">
-                {/* --- ALTERADO: Adicionado asterisco --- */}
                 <label htmlFor="NOMECLIENTE">Nome Completo <span style={{ color: 'red' }}>*</span></label>
                 <input id="NOMECLIENTE" type="text" value={formData.NOMECLIENTE} onChange={handleInputChange} required />
               </div>
               <div className="input-group">
-                 {/* --- ALTERADO: Adicionado asterisco --- */}
                 <label htmlFor="CPF">CPF <span style={{ color: 'red' }}>*</span></label>
                 <IMaskInput
                   className="input-style" mask="000.000.000-00" id="CPF"
@@ -66,7 +122,6 @@ function AddClientModal({ onClose, onClientAdded }) {
               </div>
               <div className="form-row">
                 <div className="input-group">
-                   {/* --- ALTERADO: Adicionado asterisco --- */}
                   <label htmlFor="DATANASCIMENTO">Data de Nascimento <span style={{ color: 'red' }}>*</span></label>
                   <input id="DATANASCIMENTO" type="date" value={formData.DATANASCIMENTO} onChange={handleInputChange} required />
                   {errors.DATANASCIMENTO && <p className="error-text">{errors.DATANASCIMENTO}</p>}
@@ -163,13 +218,13 @@ function AddClientModal({ onClose, onClientAdded }) {
                 <input id="COMPLEMENTO" type="text" value={formData.COMPLEMENTO} onChange={handleInputChange} />
               </div>
             </div>
-            {/* Botões - Sem alterações */}
             <div className="modal-buttons"> <button type="submit" className="btn-save" disabled={isSaving}> {isSaving ? 'Salvando...' : 'Salvar'} </button> <button type="button" className="btn-cancel" onClick={onClose}>Cancelar</button> </div>
           </form>
         </div>
       </div>
-      {/* Modal de Sucesso - Sem alterações */}
-      {showSuccessModal && ( <SuccessModal message="Cliente adicionado com sucesso!" onClose={handleSuccessModalClose} /> )}
+      
+      {/* --- ALTERAÇÃO 9: Remover o Modal de Sucesso --- */}
+      {/* {showSuccessModal && ( <SuccessModal message="Cliente adicionado com sucesso!" onClose={handleSuccessModalClose} /> )} */}
     </>
   );
 }

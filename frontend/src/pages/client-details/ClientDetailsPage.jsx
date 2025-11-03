@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage, auth } from '../../firebase-config/config';
-import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+
+// --- ALTERAÇÃO AQUI: 'deleteObject' foi REMOVIDO desta linha ---
+import { doc, getDoc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, getDocs, Timestamp, onSnapshot } from 'firebase/firestore'; 
+// --- ALTERAÇÃO AQUI: 'deleteObject' (e 'ref') vêm do storage ---
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'; 
+
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { IMaskInput } from 'react-imask';
 import Swal from 'sweetalert2';
@@ -13,6 +17,21 @@ import DocumentsTab from './DocumentsTab';
 import { logHistoryEvent } from '../../utils/historyLogger';
 import GenerateContractModal from '../../components/modals/GenerateContractModal';
 import ProcessosTab from './processos/ProcessosTab';
+import { useHelp } from '../../contexto/HelpContext';
+import { useUserRole } from '../../hooks/useUserRole';
+
+// --- DEFINIÇÃO DO TOAST ---
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer);
+    toast.addEventListener('mouseleave', Swal.resumeTimer);
+  }
+});
 
 // Funções (isValidCPF, formatDate, profissoesComuns) - Sem alterações
 function isValidCPF(cpf) { /* ...código igual... */ if (typeof cpf !== 'string') return false; cpf = cpf.replace(/[^\d]+/g, ''); if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false; const cpfArray = cpf.split('').map(el => +el); const rest = (count) => (cpfArray.slice(0, count).reduce((soma, el, index) => soma + el * (count + 1 - index), 0) * 10) % 11 % 10; return rest(9) === cpfArray[9] && rest(10) === cpfArray[10];}
@@ -37,13 +56,68 @@ function ClientDetailsPage() {
     const [userInfo, setUserInfo] = useState(null);
     const [isContractModalOpen, setIsContractModalOpen] = useState(false);
     const [showOutraProfissaoEdit, setShowOutraProfissaoEdit] = useState(false);
-    // --- ALTERADO: Renomeado para photoMarkedForRemoval e inicializado como false ---
     const [photoMarkedForRemoval, setPhotoMarkedForRemoval] = useState(false);
+
+    const { setHelpContent } = useHelp();
+    const { role } = useUserRole();
+    
+
+    // Este useEffect ATUALIZA a ajuda conforme a ABA muda
+    useEffect(() => {
+        let helpText = '';
+        switch (activeTab) {
+            case 'dadosPessoais':
+                helpText = `
+                    <h2>Ajuda: Ficha do Cliente</h2>
+                    <p>Aqui você vê todas as informações pessoais e de contato do cliente.</p>
+                    <ul>
+                        <li><strong>Editar Dados:</strong> Habilita a edição de todos os campos e da foto do cliente.</li>
+                        <li><strong>Excluir Cliente:</strong> Remove permanentemente o cliente do sistema (ação irreversível).</li>
+                        <li><strong>Gerar Contratos:</strong> Abre um modal para selecionar e gerar documentos PDF (como procuração, contrato de honorários, etc.) com base nos dados do cliente.</li>
+                    </ul>
+                `;
+                break;
+            case 'documentos':
+                helpText = `
+                    <h2>Ajuda: Documentos do Cliente</h2>
+                    <p>Esta aba armazena os documentos gerais do cliente (Ex: RG, CPF, Comprovante de Residência).</p>
+                    <p><strong>Diferença:</strong> Documentos específicos de um processo (como um laudo ou petição) devem ser anexados dentro da aba "Processos", no detalhe do processo correspondente.</p>
+                `;
+                break;
+            case 'observacoes':
+                helpText = `
+                    <h2>Ajuda: Observações</h2>
+                    <p>Use esta área como um histórico de contatos e anotações rápidas sobre o cliente. Tudo o que for salvo aqui não pode ser editado, garantindo a integridade do histórico.</p>
+                `;
+                break;
+            case 'processos':
+                helpText = `
+                    <h2>Ajuda: Processos</h2>
+                    <p>Lista todos os processos (judiciais ou administrativos) vinculados a este cliente.</p>
+                    <ul>
+                        <li><strong>+ Adicionar Processo:</strong> Abre o formulário para criar um novo processo para este cliente.</li>
+                        <li><strong>Clicar no Processo:</strong> Abre a tela de "Detalhes do Processo".</li>
+                        <li><strong>Lixeira (Admin):</strong> Permite excluir um processo (ação irreversível).</li>
+                    </ul>
+                `;
+                break;
+            default:
+                helpText = '<h2>Ajuda</h2><p>Selecione uma aba para ver a ajuda contextual.</p>';
+        }
+        setHelpContent(helpText);
+
+    }, [activeTab, setHelpContent]); // Depende da 'activeTab'
+
+    // Este useEffect limpa a ajuda ao SAIR da página inteira
+    useEffect(() => {
+        return () => {
+            setHelpContent(null);
+        };
+    }, [setHelpContent]); 
 
 
     // fetchClient (resetar photoMarkedForRemoval)
     const fetchClient = useCallback(async () => {
-        // ... (lógica igual)
         if (!id) return;
         try {
             setLoading(true);
@@ -53,9 +127,12 @@ function ClientDetailsPage() {
                 const data = { id: docSnap.id, ...docSnap.data() };
                 setClient(data);
                 setFormData(data);
-                setPhotoMarkedForRemoval(false); // Reseta aqui também
-            } else { /* ... erro ... */ Swal.fire("Erro", "Cliente não encontrado.", "error"); navigate("/");}
-        } catch (error) { /* ... erro ... */ console.error("Erro ao buscar cliente:", error); } finally { setLoading(false); }
+                setPhotoMarkedForRemoval(false); 
+            } else { 
+                Toast.fire({ icon: "error", title: "Cliente não encontrado." }); 
+                navigate("/");
+            }
+        } catch (error) { console.error("Erro ao buscar cliente:", error); } finally { setLoading(false); }
     }, [id, navigate]);
 
     useEffect(() => { fetchClient(); }, [fetchClient]);
@@ -63,29 +140,26 @@ function ClientDetailsPage() {
     useEffect(() => { /* calcular idade igual */ if (isEditing && formData?.DATANASCIMENTO) { const birthDate = new Date(formData.DATANASCIMENTO); if (!isNaN(birthDate.getTime())) { const today = new Date(); let age = today.getFullYear() - birthDate.getFullYear(); const m = today.getMonth() - birthDate.getMonth(); if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; } setFormData(prevState => ({ ...prevState, IDADE: age >= 0 ? age.toString() : '' })); } } }, [formData?.DATANASCIMENTO, isEditing]);
 
 
-    // useEffect para preparar estado da edição (resetar photoMarkedForRemoval)
+    // useEffect para preparar estado da edição
     useEffect(() => {
         if (isEditing && client) {
-            // Sincroniza formData se necessário (ao iniciar edição)
-             if (!formData || formData.id !== client.id) {
-                setFormData(client);
-                setPhotoMarkedForRemoval(false); // Reseta ao iniciar
-                setPhotoPreview(null);
-                setPhotoFile(null);
+             if (!formData || formData.id !== client.id || formData !== client) { 
+                 setFormData(client);
+                 setPhotoMarkedForRemoval(false); 
+                 setPhotoPreview(null);
+                 setPhotoFile(null);
+                const currentProfissao = client.PROFISSAO;
+                setShowOutraProfissaoEdit(Boolean(currentProfissao && !profissoesComuns.includes(currentProfissao)));
             }
-            // Lógica da profissão (igual)
-            const currentProfissao = formData?.PROFISSAO || client.PROFISSAO;
-            setShowOutraProfissaoEdit(Boolean(currentProfissao && !profissoesComuns.includes(currentProfissao)));
-        } else if (!isEditing) {
-            // Resetar estados ao sair da edição
+        } else if (!isEditing && client) {
             setShowOutraProfissaoEdit(false);
             setErrors({});
-            setPhotoMarkedForRemoval(false); // Reseta ao sair
+            setPhotoMarkedForRemoval(false); 
             setPhotoPreview(null);
             setPhotoFile(null);
-            if (client) setFormData(client); // Reseta formData
+            if (client) setFormData(client); 
         }
-    }, [isEditing, client, formData]);
+    }, [isEditing, client]);
 
 
     // Handlers de input (handleInputChange, handleMaskedInputChange, handleProfissaoSelectChangeEdit) - Sem alterações
@@ -99,12 +173,11 @@ function ClientDetailsPage() {
         if (file) {
             setPhotoFile(file);
             setPhotoPreview(URL.createObjectURL(file));
-            setPhotoMarkedForRemoval(false); // Se selecionou nova, não está mais marcada para remover
-            // Não precisa mais atualizar formData aqui, handleSave fará isso
+            setPhotoMarkedForRemoval(false); 
         }
     };
 
-    // --- ALTERADO: handleRemovePhotoClick - Foca em marcar para remoção e atualizar visual ---
+    // (Esta é a confirmação de remoção de foto, que DEVE ser um modal)
     const handleRemovePhotoClick = () => {
         Swal.fire({
             title: 'Remover Foto?',
@@ -113,10 +186,9 @@ function ClientDetailsPage() {
             cancelButtonColor: '#3085d6', confirmButtonText: 'Sim, remover!', cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                setPhotoMarkedForRemoval(true); // Marca que a intenção é remover
-                setPhotoPreview(null); // Remove preview visual
-                setPhotoFile(null); // Descarta arquivo selecionado
-                // Não precisa mais mexer no formData.photoURL aqui, handleSave cuidará disso
+                setPhotoMarkedForRemoval(true); 
+                setPhotoPreview(null); 
+                setPhotoFile(null); 
             }
         });
     }
@@ -125,46 +197,39 @@ function ClientDetailsPage() {
     const validateForm = () => { /* ...código igual... */ const newErrors = {}; if (formData.CPF && !isValidCPF(formData.CPF)) { newErrors.CPF = "O CPF digitado é inválido."; } const selectElement = document.getElementById('PROFISSAO_SELECT'); const selectValue = selectElement ? selectElement.value : ''; if (selectValue === 'Outra...' && !formData.PROFISSAO?.trim()) { newErrors.PROFISSAO = "Digite a profissão."; } setErrors(newErrors); return !newErrors.CPF && !newErrors.PROFISSAO; };
 
 
-    // --- ALTERADO: handleSave - Usa photoMarkedForRemoval ---
     const handleSave = async () => {
         if (!validateForm() || !userInfo) {
-            Swal.fire('Atenção!', 'Corrija os erros...', 'warning');
+            Toast.fire({ icon: 'warning', title: 'Corrija os erros antes de salvar.' });
             return;
         }
         try {
-            // Inicia dataToSave com formData atual (reflete edições de texto)
+            setLoading(true); // Adiciona o loading
             const dataToSave = { ...formData };
             const photoPathInStorage = `clientes/${id}/profilePicture.jpg`;
-            let photoToDeletePath = null; // Path da foto a deletar no Storage
+            let photoToDeletePath = null; 
 
-            // Garante que se "Selecione..." ficou no select, salvamos como vazio
              if (document.getElementById('PROFISSAO_SELECT')?.value === "") {
                  dataToSave.PROFISSAO = "";
              }
 
             // Lógica da foto:
             if (photoFile) {
-                // 1. Nova foto foi selecionada
-                if (client?.photoURL) { // Se existia uma foto original
-                    photoToDeletePath = photoPathInStorage; // Marca a original para deletar
+                if (client?.photoURL) { 
+                    photoToDeletePath = photoPathInStorage; 
                 }
                 const storageRef = ref(storage, photoPathInStorage);
                 await uploadBytes(storageRef, photoFile);
-                dataToSave.photoURL = await getDownloadURL(storageRef); // Salva a NOVA URL
+                dataToSave.photoURL = await getDownloadURL(storageRef); 
                 console.log("Nova foto salva:", dataToSave.photoURL);
 
             } else if (photoMarkedForRemoval) {
-                // 2. Nenhuma nova foto, MAS a remoção foi marcada
-                if (client?.photoURL) { // Verifica se realmente havia uma foto original para deletar
-                    photoToDeletePath = photoPathInStorage; // Marca para deletar
+                if (client?.photoURL) { 
+                    photoToDeletePath = photoPathInStorage; 
                 }
-                dataToSave.photoURL = null; // Define URL como nula no Firestore
+                dataToSave.photoURL = null; 
                 console.log("Foto marcada para remoção.");
 
             } else {
-                // 3. Nenhuma nova foto E remoção não foi marcada
-                // dataToSave.photoURL já contém a URL original (vinda do formData inicializado)
-                // ou null se nunca houve foto. Nenhuma ação de Storage necessária aqui.
                 console.log("Nenhuma alteração na foto.");
             }
 
@@ -185,72 +250,166 @@ function ClientDetailsPage() {
                 }
             }
 
-            // Log e finalização (igual)
             const responsavel = userInfo.nome || user.email;
             await logHistoryEvent(id, 'Dados Pessoais Editados', responsavel);
             setIsEditing(false);
-            // Estados resetados no useEffect de isEditing
-            Swal.fire('Sucesso!', 'Dados salvos com sucesso!', 'success');
-            fetchClient(); // Rebusca cliente
+            
+            Toast.fire({ icon: 'success', title: 'Dados salvos com sucesso!' });
+            
+            setClient({ ...dataToSave, id: id }); 
 
         } catch (error) {
             console.error("Erro detalhado ao salvar:", error);
-            Swal.fire('Erro!', `Falha ao salvar os dados: ${error.message}`, 'error');
+            Toast.fire({ icon: 'error', title: `Falha ao salvar: ${error.message}` });
+        } finally {
+            setLoading(false); // Remove o loading
         }
     };
 
 
-    // handleCancelEdit (Resetar photoMarkedForRemoval)
     const handleCancelEdit = () => {
         setIsEditing(false);
-        // Resetar formData é feito pelo useEffect [isEditing, client]
-        // Resetar outros estados também é feito lá
+        // O reset já é feito pelo useEffect [isEditing, client]
     };
 
 
-    // handleDeleteClient e confirmDelete (sem alterações)
-    const handleDeleteClient = async () => { /* ...código igual... */ if (!userInfo) { Swal.fire("Erro!", "...", "error"); return; } try { const docRef = doc(db, 'clientes', id); await deleteDoc(docRef); if (client?.photoURL) { try { const photoRef = ref(storage, `clientes/${id}/profilePicture.jpg`); await deleteObject(photoRef); } catch (storageError) { console.warn("...", storageError); } } await logHistoryEvent(id, 'Cliente Excluído', userInfo.nome || user.email); await Swal.fire('Excluído!', '...', 'success'); navigate('/'); } catch (error) { Swal.fire('Erro!', '...', 'error'); } };
-    const confirmDelete = () => { /* ...código igual... */ Swal.fire({ title: `Excluir ${client.NOMECLIENTE}?`, text: "...", icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Sim, excluir!', cancelButtonText: 'Cancelar' }).then((result) => { if (result.isConfirmed) { handleDeleteClient(); } }); };
+    const handleDeleteClient = async () => { 
+        if (!userInfo) { 
+            Toast.fire({ icon: "error", title: "Usuário não identificado. Tente novamente." }); 
+            return; 
+        } 
+        try { 
+            const docRef = doc(db, 'clientes', id); 
+            await deleteDoc(docRef); 
+            if (client?.photoURL) { 
+                try { 
+                    const photoRef = ref(storage, `clientes/${id}/profilePicture.jpg`); 
+                    await deleteObject(photoRef); 
+                } catch (storageError) { 
+                    console.warn("...", storageError); 
+                } 
+            } 
+            await logHistoryEvent(id, 'Cliente Excluído', userInfo.nome || user.email); 
+            
+            await Toast.fire({ icon: 'success', title: 'Cliente excluído com sucesso.' }); 
+            
+            navigate('/'); 
+        } catch (error) { 
+            Toast.fire({ icon: 'error', title: 'Falha ao excluir o cliente.' }); 
+        } 
+    };
+    
+    // (Esta é a confirmação de exclusão, que DEVE ser um modal)
+    const confirmDelete = () => { 
+        Swal.fire({ 
+            title: `Excluir ${client.NOMECLIENTE}?`, 
+            text: "Esta ação não pode ser revertida e excluirá todos os dados!", 
+            icon: 'warning', 
+            showCancelButton: true, 
+            confirmButtonColor: '#d33', 
+            cancelButtonColor: '#3085d6', 
+            confirmButtonText: 'Sim, excluir!', 
+            cancelButtonText: 'Cancelar' 
+        }).then((result) => { 
+            if (result.isConfirmed) { 
+                handleDeleteClient(); 
+            } 
+        }); 
+    };
 
 
     // renderField (sem alterações na função em si)
-    const renderField = (label, fieldId, options = {}) => { /* ...código igual... */ const { type = 'text', mask, selectOptions } = options; const valueForDisplay = client?.[fieldId]; const valueForEdit = formData?.[fieldId]; const displayValue = fieldId === 'DATANASCIMENTO' && !isEditing ? formatDate(valueForDisplay) : valueForDisplay; if (!isEditing && !displayValue) { return null; } if (isEditing && fieldId === 'PROFISSAO') { let selectValue = ""; if (valueForEdit) { if (profissoesComuns.includes(valueForEdit)) { selectValue = valueForEdit; } else { selectValue = 'Outra...'; } } return ( <div className="data-field"> <label htmlFor="PROFISSAO_SELECT">Profissão</label> <select id="PROFISSAO_SELECT" value={selectValue} onChange={handleProfissaoSelectChangeEdit}> <option value="">Selecione...</option> {profissoesComuns.map(prof => (<option key={prof} value={prof}>{prof}</option>))} <option value="Outra...">Outra...</option> </select> {showOutraProfissaoEdit && ( <input id="PROFISSAO" type="text" value={valueForEdit || ''} onChange={handleInputChange} placeholder="Digite a profissão..." style={{ marginTop: '5px' }} /> )} {errors.PROFISSAO && <p className="error-text">{errors.PROFISSAO}</p>} </div> ); } return ( <div className="data-field"> <label>{label}</label> {isEditing ? ( <> {selectOptions ? ( <select id={fieldId} value={valueForEdit || ''} onChange={handleInputChange}> <option value="">Selecione...</option> {selectOptions.filter(opt => opt.value !== "").map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)} </select> ) : mask ? ( <IMaskInput mask={mask} id={fieldId} value={valueForEdit || ''} onAccept={(val) => handleMaskedInputChange(val, fieldId)} className="input-style"/> ) : ( <input id={fieldId} type={type} value={valueForEdit || ''} onChange={handleInputChange} disabled={fieldId === 'IDADE'}/> )} {errors[fieldId] && <p className="error-text">{errors[fieldId]}</p>} </> ) : ( <p title={displayValue}>{displayValue}</p> )} </div> ); };
+    const renderField = (label, fieldId, options = {}) => { 
+        const { type = 'text', mask, selectOptions } = options; 
+        const valueForDisplay = client?.[fieldId]; 
+        const valueForEdit = formData?.[fieldId]; 
+        const displayValue = fieldId === 'DATANASCIMENTO' && !isEditing ? formatDate(valueForDisplay) : valueForDisplay; 
+        
+        if (!isEditing && !displayValue) { return null; } 
+        
+        if (isEditing && fieldId === 'PROFISSAO') { 
+            let selectValue = ""; 
+            if (valueForEdit) { // Se temos um valor no form
+                if (profissoesComuns.includes(valueForEdit)) { 
+                    selectValue = valueForEdit; // "Advogado(a)"
+                } else { 
+                    selectValue = 'Outra...'; // "Marceneiro"
+                }
+            } else if (showOutraProfissaoEdit) {
+                 // Se o valor é '' (vazio) MAS o input "Outra" está visível
+                 selectValue = 'Outra...';
+            }
+            // Se for '' e showOutraProfissaoEdit for false, selectValue continua "" ("Selecione...")
+
+            return ( 
+                <div className="data-field"> 
+                    <label htmlFor="PROFISSAO_SELECT">Profissão</label> 
+                    <select id="PROFISSAO_SELECT" value={selectValue} onChange={handleProfissaoSelectChangeEdit}> 
+                        <option value="">Selecione...</option> 
+                        {profissoesComuns.map(prof => (<option key={prof} value={prof}>{prof}</option>))} 
+                        <option value="Outra...">Outra...</option> 
+                    </select> 
+                    {showOutraProfissaoEdit && ( 
+                        // Se o valor for "Outra...", o input começa vazio
+                        <input id="PROFISSAO" type="text" value={profissoesComuns.includes(valueForEdit) ? '' : (valueForEdit || '')} onChange={handleInputChange} placeholder="Digite a profissão..." style={{ marginTop: '5px' }} /> 
+                    )} 
+                    {errors.PROFISSAO && <p className="error-text">{errors.PROFISSAO}</p>} 
+                </div> 
+            ); 
+        } 
+        
+        return ( 
+            <div className="data-field"> 
+                <label>{label}</label> 
+                {isEditing ? ( 
+                    <> 
+                        {selectOptions ? ( 
+                            <select id={fieldId} value={valueForEdit || ''} onChange={handleInputChange}> 
+                                <option value="">Selecione...</option> 
+                                {selectOptions.filter(opt => opt.value !== "").map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)} 
+                            </select> 
+                        ) : mask ? ( 
+                            <IMaskInput mask={mask} id={fieldId} value={valueForEdit || ''} onAccept={(val) => handleMaskedInputChange(val, fieldId)} className="input-style"/> 
+                        ) : ( 
+                            <input id={fieldId} type={type} value={valueForEdit || ''} onChange={handleInputChange} disabled={fieldId === 'IDADE'}/> 
+                        )} 
+                        {errors[fieldId] && <p className="error-text">{errors[fieldId]}</p>} 
+                    </> 
+                ) : ( 
+                    <p title={displayValue}>{displayValue}</p> 
+                )} 
+            </div> 
+        ); 
+    };
 
 
-    // --- ALTERADO: renderContent (lógica da foto simplificada) ---
     const renderContent = () => {
         switch (activeTab) {
             case 'dadosPessoais':
-                // Determina a URL da imagem a ser exibida AGORA
-                // Prioridade: Preview (nova foto) > null (se marcada para remover) > formData.photoURL (valor atual no form)
                 let displayPhotoUrl = null;
                 if (photoPreview) {
-                    displayPhotoUrl = photoPreview; // Mostra a nova foto selecionada
+                    displayPhotoUrl = photoPreview; 
                 } else if (!photoMarkedForRemoval) {
-                    displayPhotoUrl = formData?.photoURL || null; // Mostra a foto atual do form, a menos que marcada para remover
+                    displayPhotoUrl = formData?.photoURL || null; 
                 }
-                // Se photoMarkedForRemoval for true, displayPhotoUrl permanecerá null
 
                 return (
                     <>
                         <div className="personal-data-layout">
                             <div className="photo-section">
                                 <div className="photo-container">
-                                    {/* Exibição da foto ou placeholder */}
                                     {displayPhotoUrl ? (
-                                        <img src={displayPhotoUrl} alt="Foto do Cliente" onError={(e) => { /* ... */ }} />
+                                        <img src={displayPhotoUrl} alt="Foto do Cliente" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }} />
                                     ) : (
                                          <div className="photo-placeholder" style={{ display: 'flex' }}>
-                                            <FaUserCircle className="photo-placeholder-icon" />
-                                        </div>
+                                             <FaUserCircle className="photo-placeholder-icon" />
+                                         </div>
                                     )}
 
-                                    {/* Overlay de edição */}
                                     {isEditing && (
                                         <>
                                             <input id="photo-upload" type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: 'none' }}/>
                                             <label
-                                                // Se HÁ foto (E não marcada p/ remover), click remove. Senão, click abre seletor.
                                                 htmlFor={!displayPhotoUrl ? "photo-upload" : ""}
                                                 className="photo-edit-overlay"
                                                 onClick={displayPhotoUrl ? handleRemovePhotoClick : null}
@@ -262,7 +421,6 @@ function ClientDetailsPage() {
                                     )}
                                 </div>
                             </div>
-                            {/* data-grid continua igual */}
                             <div className="data-grid full-width-grid">
                                 {renderField("Nome Completo", "NOMECLIENTE")}
                                 {renderField("CPF", "CPF", { mask: "000.000.000-00" })}
@@ -288,24 +446,28 @@ function ClientDetailsPage() {
                                 {renderField("NIT", "NIT")}
                             </div>
                         </div>
-                        {/* action-buttons continua igual */}
                         <div className="action-buttons">
                             {isEditing ? (
                                 <>
-                                    <button className="action-btn primary" onClick={handleSave}>Salvar Alterações</button>
+                                    <button className="action-btn primary" onClick={handleSave} disabled={loading}>{loading ? 'Salvando...' : 'Salvar Alterações'}</button>
                                     <button className="action-btn" onClick={handleCancelEdit}>Cancelar</button>
                                 </>
                             ) : (
                                 <>
                                     <button className="action-btn primary" onClick={() => setIsEditing(true)}>Editar Dados</button>
-                                    <button className="action-btn delete" onClick={confirmDelete}>Excluir Cliente</button>
+                                    
+                                    {/* --- ALTERAÇÃO 3: Botão de excluir condicional --- */}
+                                    {role === 'admin' && (
+                                        <button className="action-btn delete" onClick={confirmDelete}>Excluir Cliente</button>
+                                    )}
+                                    {/* --- FIM DA ALTERAÇÃO --- */}
+
                                     <button className="action-btn" onClick={() => setIsContractModalOpen(true)}>Gerar Contratos</button>
                                 </>
                             )}
                         </div>
                     </>
                 );
-            // Cases 'documentos', 'observacoes', 'processos' (sem alterações)
             case 'documentos': return <DocumentsTab client={client} onDataChange={fetchClient} />;
             case 'observacoes': return <ObservationsTab client={client} />;
             case 'processos': return <ProcessosTab client={client} />;
@@ -313,13 +475,13 @@ function ClientDetailsPage() {
         }
     };
 
+    // Adicionado 'loading' ao estado de carregamento
     if (loading || !formData) return <div className="loading-container">Carregando ficha...</div>;
     if (!client) return <div className="loading-container">Cliente não encontrado.</div>;
 
 
     return (
         <div className="client-details-wrapper">
-            {/* nav e modal (sem alterações) */}
             <nav className="tabs-nav"> <button className={`tab-button ${activeTab === 'dadosPessoais' ? 'active' : ''}`} onClick={() => setActiveTab('dadosPessoais')}>Dados Pessoais</button> <button className={`tab-button ${activeTab === 'documentos' ? 'active' : ''}`} onClick={() => setActiveTab('documentos')}>Documentos</button> <button className={`tab-button ${activeTab === 'observacoes' ? 'active' : ''}`} onClick={() => setActiveTab('observacoes')}>Observações</button> <button className={`tab-button ${activeTab === 'processos' ? 'active' : ''}`} onClick={() => setActiveTab('processos')}>Processos</button> </nav>
             <div className="tab-content"> {renderContent()} </div>
             {isContractModalOpen && ( <GenerateContractModal client={client} onClose={() => setIsContractModalOpen(false)} onContractsGenerated={fetchClient} /> )}

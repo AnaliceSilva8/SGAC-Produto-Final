@@ -22,7 +22,7 @@
 }
 
 .add-user-button {
-    background-color: #004d40;
+    background-color:rgb(26, 75, 95);
     color: white;
     border: none;
     padding: 0.8rem 1.5rem;
@@ -37,7 +37,7 @@
 }
 
 .add-user-button:hover {
-    background-color: #00382e;
+    background-color: rgb(26, 75, 95);
 }
 
 .users-list-container {

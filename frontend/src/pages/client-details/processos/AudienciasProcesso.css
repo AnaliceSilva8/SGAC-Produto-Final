@@ -1,0 +1,177 @@
+/* Card de Audiências */
+.audiencias-card {
+  /* Garante que ele se empilhe corretamente na coluna da direita */
+  margin-top: 20px;
+}
+
+.audiencias-card h4 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-add-audiencia {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn-add-audiencia:hover {
+  background-color: #0056b3;
+}
+
+.audiencias-list {
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 5px; /* Espaço para a barra de rolagem */
+}
+
+.audiencia-item {
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  gap: 15px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.audiencia-item:last-child {
+  border-bottom: none;
+}
+
+.audiencia-status {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  color: white;
+  text-transform: uppercase;
+}
+.status-agendada { background-color: #ffc107; color: #333; }
+.status-concluída { background-color: #28a745; }
+.status-cancelada { background-color: #dc3545; }
+
+.audiencia-detalhes .audiencia-data {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.audiencia-detalhes .audiencia-obs,
+.audiencia-detalhes .audiencia-obs-concluida {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 5px 0 0 0;
+  font-style: italic;
+}
+.audiencia-detalhes .audiencia-obs span,
+.audiencia-detalhes .audiencia-obs-concluida span {
+  font-style: normal;
+  font-weight: 600;
+  color: #444;
+}
+.audiencia-detalhes .audiencia-obs-concluida {
+  color: #1a6e30; /* Verde escuro para a conclusão */
+}
+
+.btn-concluir-audiencia {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn-concluir-audiencia:hover {
+  background-color: #218838;
+}
+
+/* --- Estilos do Modal de Audiência --- */
+.audiencia-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+}
+
+.audiencia-modal-content {
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.audiencia-modal-content h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.audiencia-modal-content .form-group {
+  margin-bottom: 15px;
+}
+.audiencia-modal-content .form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.audiencia-modal-content .form-group input,
+.audiencia-modal-content .form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 0.95rem;
+}
+.audiencia-modal-content .form-group input:disabled {
+  background-color: #f0f0f0;
+}
+.audiencia-modal-content .form-group textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.audiencia-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+.audiencia-modal-actions .btn-cancel,
+.audiencia-modal-actions .btn-save {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.audiencia-modal-actions .btn-cancel {
+  background-color: #6c757d;
+  color: white;
+}
+.audiencia-modal-actions .btn-save {
+  background-color: #007bff;
+  color: white;
+}

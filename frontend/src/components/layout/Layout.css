@@ -40,3 +40,29 @@
   font-size: 0.7rem;
   font-weight: bold;
 }
+
+/* --- ALTERAÇÃO: Estilos para o Link de Ajuda --- */
+.nav-link-ajuda {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Espaço entre o ícone e o texto */
+  padding: 10px 20px;
+  margin: 5px 0;
+  color: #555; /* Cor igual aos outros links inativos */
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s, color 0.2s;
+  border-radius: 6px;
+}
+
+.nav-link-ajuda:hover {
+  color: #2a5256; /* Cor de hover igual ao item ativo */
+  background-color: #e0eaf7;
+}
+
+.nav-link-ajuda span {
+    /* Garante que o span do texto se comporte como os outros */
+    color: inherit; 
+}
+/* --- FIM DA ALTERAÇÃO --- */
