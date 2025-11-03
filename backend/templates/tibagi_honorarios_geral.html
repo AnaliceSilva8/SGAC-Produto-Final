@@ -4,25 +4,46 @@
     <meta charset="UTF-8">
     <title>Contrato de Prestação de Serviços e Honorários</title>
     <style>
-        body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; padding: 1in; color: #000; }
-        .header { text-align: center; }
-        .logo { width: 150px; }
-        .title { font-weight: bold; text-align: center; font-size: 13pt; margin-top: 20px; margin-bottom: 25px; text-transform: uppercase; }
-        p { text-align: justify; margin-bottom: 12px; text-indent: 1.25cm; }
-        .no-indent { text-indent: 0; }
-        strong, b { font-weight: bold; text-transform: uppercase; }
-        .signature-block { margin-top: 40px; text-indent: 0; }
+        /* --- CORREÇÃO 1: Removido 'padding: 1in;' do body --- */
+        body { 
+            font-family: 'Times New Roman', Times, serif; 
+            font-size: 12pt; 
+            line-height: 1.5; 
+            color: #000; 
+        }
+        
+        /* --- CORREÇÃO 2: Removidas classes .header e .logo que não são mais usadas --- */
+
+        .title { 
+            font-weight: bold; 
+            text-align: center; 
+            font-size: 13pt; 
+            margin-top: 20px; 
+            margin-bottom: 25px; 
+            text-transform: uppercase; 
+        }
+        p { 
+            text-align: justify; 
+            margin-bottom: 12px; 
+            text-indent: 1.25cm; 
+        }
+        .no-indent { 
+            text-indent: 0; 
+        }
+        strong, b { 
+            font-weight: bold; 
+            text-transform: uppercase; 
+        }
+        .signature-block { 
+            margin-top: 40px; 
+            text-indent: 0; 
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <img src="data:image/png;base64,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3/4P1P0Xv+t/S//n/p/K/Mv8v+L++5b+7/+H0v9f5L1X/x+e/6j9k/pP+t3L/R/Wfuf8v+D++5/8H/d/6n5n/r+7/+O8x/1/c/2H8p+b/BP9F/+v/v6H+l7X3feP/m/L//9N+9/9G/+ve+8/+9/u/Y/+n89/Wf8v+T/1XnN//Cfb9vvXfm/+L93/A/vP2v9H/t+//n+n/Vf/L+j9l/5d1P/A97D/b9r/0/9D+n/0v/Z/Sf9H+3/Nfs/+V89//X/1/v/k/R/R/9X/a/5/5b5/4z/e/v+3/X/v/n/DP7f5b/+L/R/B/vP2f/Z/13b/xv+T/O/6H7X+i//P879f/Qf/L73/P/2v2/+n/lfc/pP+V9X/K/v/2fa/0f+p/Qfe/2P+n/Cfdv1n/zfa/2P8J/lf2/+T9H/B/6H9D97/Kfsz+T/pf5f+p9D9W97/Y/2fsv6L+v+R+3+P9V+x/9P6z/v/mv0/2P/t9L8C/+/r/y//t/S/2P/7/W/rf3H+y/7fvPe/+P/L/t/W/5P8v6r/j+3/f/Pfs/8j+5+d/+71n3/vj/t/S//H7H/c/p/+9+y/W/9z/y/p/1n/u/V/wP1f1v8l/8fWf7P+s/f/+P9V/y/r/47/+/p/hv+n/hfc/xv/D93/M/3fjf9/1n/s/C/+f+T+V9b/p+z/7P2I/e9n/V+x/8f9v5L/L+v/if3f5f/g/d/yX9H/Nf2v2//1/l/W/4j+n/K/7/rv3v/j+v/i/1fmf9X/E/Yv1/+v8n/yPufw//C+n/kv83/T/2/7f9D/x/5X4n/qfV/w/+T+f9N/xf7f6f/v/X/o/Z/T/+n9/+i/3/9/y3+B/h+P/1/Vf8v8x/v/kv+39n/1v9T+h+y/qv/n9D8x/+/V/z7/T+9/xv677P+t/+/u/xf+p/p/U/v/j/9n7D9z/zfr//d+v5n/L+n/7v2P+X9H/zP6z9L//v8n//8a+7/6P7P97+D7V/rv/7/H/+f/T+N/g/9H6/jP2P7P/r+w/S/+P3/8T/a/sf2b9N/0/w/xf7f+V/O/Y/+H1f8T9X/o/+T7P6j//+a/2f+z8j/P/L+v/K/Ff8v+D8r+u/+7/s/+
-" alt="Logo" class="logo"/>
-    </div>
-
     <p class="title">CONTRATO DE PRESTAÇÃO DE SERVIÇOS E HONORÁRIOS ADVOCATÍCIOS</p>
     
-    <p>Pelo presente Contrato de Prestação de Serviços Profissionais, que faz de um lado <strong>HERCULES MARCIO IDALINO - SOCIEDADE INDIVIDUAL DE ADVOCACIA</strong>, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 55.405.787/0001-63, com sede na Rua Cel. Telêmaco Borba, nº 1513-Centro - CEP 84300-000, Tibagi/PR, neste ato representada por HERCULES MARCIO IDALINO, brasileiro, casado, advogado, inscrito na OAB/PR sob o n° 52.296, denominada <strong>CONTRATADA</strong> e, por outro lado, {{NOMECLIENTE}}, brasileiro(a), {{ESTADOCIVIL}}, {{PROFISSAO}}, portador do documento de identificação RG no {{RG}} e inscrito no CPF n°. {{CPF}}, residente e domiciliado à Rua {{RUA}} n°. {{NUMERO}}, na cidade de Tibagi -Pr, CEP: 84300-000, Telefone {{TELEFONE}}, neste ato denominado, neste ato denominado (a) (s) <strong>CONTRATANTE(S)</strong>, que convencionam e contratam o seguinte:</p>
+    <p>Pelo presente Contrato de Prestação de Serviços Profissionais, que faz de um lado <strong>HERCULES MARCIO IDALINO - SOCIEDADE INDIVIDUAL DE ADVOCACIA</strong>, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº 55.405.877/0001-63, com sede na Rua Cel. Telêmaco Borba, nº 1513-Centro - CEP 84300-000, Tibagi/PR, neste ato representada por HERCULES MARCIO IDALINO, brasileiro, casado, advogado, inscrito na OAB/PR sob o n° 52.296, denominada <strong>CONTRATADA</strong> e, por outro lado, <b>{{NOMECLIENTE}}</b>, brasileiro(a), <b>{{ESTADOCIVIL}}</b>, <b>{{PROFISSAO}}</b>, portador do documento de identificação RG no <b>{{RG}}</b> e inscrito no CPF n°. <b>{{CPF}}</b>, residente e domiciliado à Rua <b>{{RUA}}</b> n°. <b>{{NUMERO}}</b>, na cidade de Tibagi -Pr, CEP: 84300-000, Telefone <b>{{TELEFONE}}</b>, neste ato denominado, neste ato denominado (a) (s) <strong>CONTRATANTE(S)</strong>, que convencionam e contratam o seguinte:</p>
 
     <p class="no-indent"><strong>I- Do Objeto</strong></p>
     <p><strong>CLÁUSULA PRIMEIRA:</strong> Os advogados ora contratados obrigam-se face ao mandato que lhes foi outorgado, a prestar seus serviços profissionais na defesa dos interesses do(a)(s) <strong>CONTRATANTE(S)</strong> nos termos da Lei nº 8.906/94, devendo promover <strong>AÇÃO DE CONCESSÃO DE BENEFÍCIO PREVIDENCIÁRIO.</strong></p>
@@ -52,20 +73,21 @@
     
     <p class="no-indent"><strong>III- Dos Deveres do Contratante(s)</strong></p>
     <p><strong>CLÁUSULA SEXTA:</strong> O(a)(s) <strong>CONTRATANTE(S)</strong> se responsabiliza(m) pela veracidade de suas alegações, documentos e declarações apresentadas no escritório, em juízo ou fora dele, ficando os <strong>ADVOGADOS</strong> isento de total responsabilidade de seu conteúdo e teor e da forma como foram confeccionados e/ou obtidos.</p>
-    <p><strong>Parágrafo Primeiro:</strong> Eventuais danos causados a terceiros surgidos serão suportados exclusivamente pelo(s) <strong>CONTRATANTE(S).</strong></p>
+    <p><strong>Parágrafo Primeiro:</strong> Eventuais danos causados a terceiros surgidos serão suportados exclusively pelo(s) <strong>CONTRATANTE(S).</strong></p>
     <p><strong>Parágrafo Segundo:</strong> Ainda, sem prejuízo dos honorários contratados, poderá se dar a rescisão contratual, em havendo, abertura de qualquer procedimento administrativo ou judicial na esfera civil ou criminal, por conta de narração de fatos ou entrega de documentos perante quaisquer órgão público ou particular, bem como a ocultação da realidade por parte do(s) <strong>CONTRATANTE(S).</strong></p>
     <p><strong>CLÁUSULA SÉTIMA:</strong> O(a)(s) <strong>CONTRATANTE(S)</strong>, obriga(m)-se a: a) Apresentar os fatos, documentos, testemunhas e narrativas na forma como se deram, com autenticidade e idoneidade no tempo exigido pelos <strong>ADVOGADOS</strong>; b) Entregar toda documentação necessária à propositura e tramite da ação; c) Fornecer os nomes e endereços das testemunhas e atualiza-los, se necessário, tudo no tempo legal; d) Atualizar seu endereço e telefone para contato sempre que houver modificação.</p>
     <p>Fica eleito o foro da Comarca de Londrina - Paraná, para dirimir qualquer dúvida oriunda do presente contrato, pro mais privilegiado que outro possa existir.</p>
     <p>E, por se acharem justos e contratados, ambas as partes de pleno acordo, sendo capazes, assinam o presente instrumento em duas vias de igual valor e teor, perante duas testemunhas, para que surta seus jurídicos e legais efeitos.</p>
 
-    <div class="signature-block">
-        <p class="no-indent">CONTRATANTE(S): {{NOMECLIENTE}}</p>
-        <p class="no-indent">CPF: {{CPF}}</p>
-        <br><br>
-        <p class="no-indent">Tibagi, {{dia}} de {{mes}} de {{ano}}.</p>
-        <br><br>
-        <p class="no-indent"><strong>CONTRATADO: HERCULES MARCIO IDALINO SOCIEDADE INDIVIDUAL DE ADVOCACIA,</strong></p>
-        <p class="no-indent">CNPJ: 55.405.787/0001-63</p>
-    </div>
-</body>
+   <div class="signature-block" style="text-align: center;">
+        
+        <hr style="width: 70%; margin: 60px auto 0 auto; border: 0; border-top: 1px solid #000;">
+        
+        <p class="no-indent" style="margin-top: 5px;"><b>{{NOMECLIENTE}}</b></p>
+        <p class="no-indent">CPF: <b>{{CPF}}</b></p>
+        <br><br>
+        <p class="no-indent">Tibagi, {{dia}} de {{mes}} de {{ano}}.</p>
+    </div>
+
+    </body>
 </html>
