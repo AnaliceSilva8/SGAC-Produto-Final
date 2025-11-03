@@ -1,144 +1,99 @@
-/* Container principal com o espaçamento corrigido à esquerda */
-.notifications-page-container {
-    padding: 2rem 2rem 2rem 2.5rem; /* Aumentado o padding esquerdo */
-    height: 100%;
-}
+/* frontend/src/pages/notifications/NotificationsPage.css */
 
-.notifications-page-container h1 {
-    margin-bottom: 1.5rem;
-    color: #333;
-    border-bottom: 2px solid #eee;
-    padding-bottom: 1rem;
+.notifications-container {
+    /* ***** CORREÇÃO DE LAYOUT ***** */
+    width: 97%;           /* Ocupa 95% da largura da tela */
+    max-width: 2300px;    /* Define uma largura máxima para telas grandes */
+    margin: 2rem auto;    /* Centraliza e adiciona margem do menu */
+    padding: 0 1rem;      /* Adiciona um padding lateral para telas menores */
 }
 
 .notifications-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    margin-top: 1.5rem;
 }
 
-.notification-item-link {
-    text-decoration: none;
-    color: inherit;
-}
-
-.notification-item {
+.notification-card {
     display: flex;
     align-items: center;
-    padding: 1rem 1.5rem;
     background-color: #fff;
+    border: 1px solid #e0e0e0;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    position: relative;
-    border-left: 5px solid transparent;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 0.2s ease-in-out;
 }
 
-.notification-item.nao-lida {
-    background-color: #f8f9fa;
-    border-left-color: #007bff;
-}
-
-.notification-item:hover {
-    background-color: #eef1f4;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+.notification-card:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
 }
 
 .notification-icon {
-    font-size: 1.8rem;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
     margin-right: 1.5rem;
-    width: 30px; /* Alinhamento dos ícones */
-    text-align: center;
+    font-size: 1.4rem;
+    color: white;
 }
-
-/* Cores específicas para cada tipo de ícone */
-.notification-icon.birthday { color: #fd7e14; }
-.notification-icon.register { color: #28a745; }
-.notification-icon.default { color: #6c757d; }
 
 .notification-content {
     flex-grow: 1;
+    min-width: 0;
 }
 
-.notification-title {
-    font-weight: bold;
-    margin: 0 0 0.25rem 0;
-    font-size: 1rem;
-    color: #212529;
+/* ***** CORREÇÃO DE LINK ***** */
+/* Remove o sublinhado e a cor azul do link */
+.notification-link {
+    text-decoration: none;
+    color: inherit;
+    display: block; /* Faz a área do link ocupar todo o espaço */
 }
 
-.notification-message {
-    margin: 0;
-    color: #495057;
-    font-size: 0.9rem;
-}
-
-.notification-time {
-    font-size: 0.8rem;
-    color: #6c757d;
-    margin-top: 0.5rem;
+.notification-content strong {
     display: block;
+    margin-bottom: 0.3rem;
+    font-size: 1rem;
+    color: #333;
 }
 
-/* Botão para apagar notificação */
-.delete-notification-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
+.notification-content p {
+    margin: 0 0 0.3rem 0;
+    font-size: 0.9rem;
+    color: #555;
+    line-height: 1.4;
+}
+
+.notification-content small {
+    font-size: 0.75rem;
+    color: #777;
+}
+
+.delete-button {
     background: none;
     border: none;
-    color: #adb5bd;
     cursor: pointer;
-    font-size: 1rem;
-    padding: 5px;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out, color 0.2s ease-in-out, background-color 0.2s;
-}
-
-.notification-item:hover .delete-notification-btn {
-    opacity: 1;
-}
-
-.delete-notification-btn:hover {
-    color: #dc3545;
-    background-color: #f1f1f1;
-}
-
-/* Mensagem de "Nenhuma notificação" */
-.no-notifications {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 4rem;
-    color: #6c757d;
-    text-align: center;
-    font-size: 1.2rem;
-    margin-top: 2rem;
-}
-
-.no-notifications i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-}
-
-/* Mensagens de erro e carregamento */
-.error-message, .loading-container-notif {
-    padding: 2rem;
-    text-align: center;
+    color: #aaa;
     font-size: 1.1rem;
-    color: #6c757d;
+    padding: 0.5rem;
+    margin-left: 1rem;
+    transition: color 0.2s ease;
+}
+
+.delete-button:hover {
+    color: #e74c3c;
 }
 
 .error-message {
-    color: #721c24;
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-    border-radius: 8px;
+    color: #e74c3c;
+    font-weight: bold;
+    text-align: center;
+    padding: 1rem;
+    border: 1px solid #e74c3c;
+    background-color: #fbeae5;
+    border-radius: 4px;
 }

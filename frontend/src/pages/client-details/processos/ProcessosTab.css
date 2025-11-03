@@ -78,3 +78,54 @@
     font-size: 14px;
     margin-top: 4px;
 }
+/* Adicione estas regras no final do arquivo */
+
+.processo-list-item-wrapper {
+  display: flex; /* Alinha o conteúdo e o botão na mesma linha */
+  align-items: center; /* Centraliza verticalmente */
+  justify-content: space-between; /* Empurra o botão para a direita */
+  background-color: #fff;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 10px 15px; /* Padding interno */
+  margin-bottom: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: box-shadow 0.2s ease-in-out;
+  /* Remove o cursor pointer daqui, ele vai para o content */
+}
+
+/* O conteúdo clicável ocupa a maior parte do espaço */
+.processo-list-item-content {
+  flex-grow: 1; /* Faz ocupar o espaço disponível */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer; /* Cursor de link apenas no conteúdo */
+  margin-right: 15px; /* Espaço entre o conteúdo e o botão de deletar */
+}
+
+.processo-list-item-wrapper:hover {
+   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Estilo para o botão de exclusão */
+.processo-delete-btn {
+  background: none;
+  border: none;
+  color: #dc3545; /* Vermelho para indicar perigo */
+  font-size: 1.1em; /* Tamanho do ícone */
+  cursor: pointer;
+  padding: 5px; /* Pequena área de clique */
+  margin-left: auto; /* Garante que fique à direita se o wrapper falhar */
+  transition: color 0.2s ease;
+}
+
+.processo-delete-btn:hover {
+  color: #a71d2a; /* Vermelho mais escuro ao passar o mouse */
+}
+
+/* Ajustes no processo-info se necessário */
+.processo-info {
+   /* Estilos existentes */
+   margin-right: 10px; /* Garante espaço antes do StatusBadge */
+}

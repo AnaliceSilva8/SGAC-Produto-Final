@@ -130,3 +130,11 @@
   padding: 2rem;
   background: #fdfdfd;
 }
+
+.data-field p {
+  white-space: nowrap; 
+  overflow: hidden; 
+  text-overflow: ellipsis; 
+  max-width: 25ch; /* <<-- Linha alterada */
+  display: block; 
+}

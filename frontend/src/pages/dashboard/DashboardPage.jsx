@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { db } from '../../firebase-config/config';
-import { collection, getDocs, query, where } from "firebase/firestore"; // Removido o 'orderBy' daqui
+import { collection, getDocs, query, where } from "firebase/firestore"; 
 import './DashboardPage.css';
 import AddClientModal from '../add-client/AddClientModal';
 
 const formatDate = (dateString) => {
   if (!dateString || typeof dateString !== 'string') return 'N/A';
   const parts = dateString.split('-');
-  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  if (parts.length === 3) return `${parts[2]}/${parts[1]
+}/${parts[0]}`;
   return dateString;
 };
 
@@ -19,6 +20,10 @@ function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
+
+  // Estados dos cards do rodapé
+  const [newClientsCount, setNewClientsCount] = useState(0);
+  const [activeProcessCount, setActiveProcessCount] = useState(0); 
 
   const selectedLocation = localStorage.getItem('selectedLocation');
 
@@ -32,7 +37,6 @@ function DashboardPage() {
       setIsLoading(true);
       const clientsCollection = collection(db, "clientes");
       
-      // 1. A CONSULTA AGORA APENAS FILTRA, SEM ORDENAR
       const q = query(
         clientsCollection, 
         where("LOCATION", "==", selectedLocation)
@@ -41,7 +45,6 @@ function DashboardPage() {
       const data = await getDocs(q);
       const clientList = data.docs.map(doc => ({ ...doc.data(), id: doc.id }));
 
-      // 2. A ORDENAÇÃO É FEITA AQUI, NO CÓDIGO
       clientList.sort((a, b) => {
         if (a.NOMECLIENTE < b.NOMECLIENTE) return -1;
         if (a.NOMECLIENTE > b.NOMECLIENTE) return 1;
@@ -62,6 +65,47 @@ function DashboardPage() {
     fetchClients();
   }, [selectedLocation, navigate]);
 
+  // Lógica para CLIENTES NOVOS
+  useEffect(() => {
+    if (clients.length > 0) {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+
+      const newClients = clients.filter(client => {
+        if (client.DATAADC && typeof client.DATAADC.toDate === 'function') {
+          const clientAddedDate = client.DATAADC.toDate();
+          return clientAddedDate >= sevenDaysAgo;
+        }
+        return false;
+      });
+
+      setNewClientsCount(newClients.length);
+    }
+  }, [clients]);
+
+  // Lógica para PROCESSOS EM ANDAMENTO
+  useEffect(() => {
+    const fetchProcessCounts = async () => {
+      if (clients.length === 0) {
+        return; 
+      }
+      const activeStatuses = ['Ativo', 'Em análise', 'Aguardando Documentos'];
+      const promises = clients.map(client => {
+        const processosRef = collection(db, 'clientes', client.id, 'processos');
+        const q = query(processosRef, where('STATUS', 'in', activeStatuses));
+        return getDocs(q); 
+      });
+      const querySnapshots = await Promise.all(promises);
+      let totalCount = 0;
+      querySnapshots.forEach(snapshot => {
+        totalCount += snapshot.size; 
+      });
+      setActiveProcessCount(totalCount);
+    };
+    fetchProcessCounts();
+  }, [clients]); 
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     if (searchInputRef.current) {
@@ -79,7 +123,6 @@ function DashboardPage() {
     return name.includes(search) || (searchNumbers.length > 0 && cpf.includes(searchNumbers)) || birthDate.includes(search);
   });
 
-  // O restante do seu componente (o JSX) continua o mesmo
   return (
     <>
       <div className="toolbar">
@@ -108,7 +151,20 @@ function DashboardPage() {
                 </Link>
                 <span>{client.CPF || 'N/A'}</span>
                 <span>{formatDate(client.DATANASCIMENTO)}</span>
-                <button className="view-process-btn">Visualizar Processos</button>
+                
+                {/* --- BOTÃO ALTERADO AQUI --- */}
+                {/* Isto foi alterado de <button> para <Link>.
+                  Ele navega para a página do cliente e passa o 'state'
+                  para informar à próxima página qual aba abrir.
+                */}
+                <Link 
+                  to={`/cliente/${client.id}`} 
+                  state={{ defaultTab: 'processos' }} 
+                  className="view-process-btn"
+                >
+                  Visualizar Processos
+                </Link>
+                
               </li>
             ))}
           </ul>
@@ -121,10 +177,10 @@ function DashboardPage() {
           <p>{clients.length}</p>
         </div>
         <div className="summary-card">
-          <h4>CLIENTES NOVOS</h4><p>0</p>
+          <h4>CLIENTES NOVOS</h4><p>{newClientsCount}</p>
         </div>
         <div className="summary-card">
-          <h4>PROCESSOS EM ANDAMENTO</h4><p>0</p>
+          <h4>PROCESSOS EM ANDAMENTO</h4><p>{activeProcessCount}</p>
         </div>
       </footer>
 
